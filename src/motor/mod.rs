@@ -85,6 +85,7 @@ pub struct Motor {
     end_switch_left: Option<Switch>,
     end_switch_right: Option<Switch>,
     task: Option<Task>,
+    current_direction: Direction,
 }
 
 impl Motor {
@@ -107,15 +108,19 @@ impl Motor {
             None
         };
 
+        let mut direction = Gpio::new().unwrap().get(dir).unwrap().into_output();
+        direction.set_low();
+
         Motor {
             pull: Gpio::new().unwrap().get(pull).unwrap().into_output(),
-            direction: Gpio::new().unwrap().get(dir).unwrap().into_output(),
+            direction: direction,
             enable: ena_gpio,
             step_pos: 0i32,
             max_step_speed: max_step_speed,
             end_switch_left: left,
             end_switch_right: right,
             task: None,
+            current_direction: Direction::LEFT,
         }
     }
     pub fn manual_move(&mut self, direction: Direction, speed: f32) -> Result<(), ()> {

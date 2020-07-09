@@ -1,6 +1,8 @@
 mod motor;
 mod switch;
+mod program;
 use crate::motor::{Motor, Direction, CommandOwner};
+use crate::program::{Program};
 
 use gilrs::{Gilrs, Axis, Event, Button, EventType};
 
@@ -14,6 +16,8 @@ fn main() {
     let mut motor = Motor::new(18, 23, None, Some(26), None, 5000);
 
     motor.manual_move(Direction::LEFT, 1000.0f32);
+    let prog = Program::new("./example.gcode").expect("failed to load file");
+    prog.run_program();
     'running: loop {
         motor.poll();
         // map GamePad events to drone

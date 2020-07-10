@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use rppal::gpio::{Gpio, InputPin, Level};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -16,7 +17,7 @@ pub struct Switch {
 
 impl Switch {
     pub fn new(pin: u8, invert_input: bool) -> Switch {
-        let gpio =  Gpio::new().unwrap().get(pin).unwrap().into_input();
+        let gpio = Gpio::new().unwrap().get(pin).unwrap().into_input();
         let state = gpio.read();
         Switch {
             pin: pin,

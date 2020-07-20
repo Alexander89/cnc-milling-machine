@@ -6,7 +6,7 @@ pub mod task;
 
 pub use mock_motor::MockMotor;
 pub use step_motor::StepMotor;
-pub use task::{Direction, ProgramTask};
+pub use task::{Direction, MoveType, ProgramTask, Task};
 
 pub enum CommandOwner {
     PROGRAM,
@@ -20,8 +20,8 @@ pub trait Motor {
 }
 
 pub trait AutonomeMotor {
-    fn exec_task(&mut self, task: ProgramTask) -> Result<(), ()>;
-    fn query_task(&mut self, task: ProgramTask) -> ();
+    fn exec_task(&mut self, task: Task) -> Result<(), ()>;
+    fn query_task(&mut self, task: Task) -> ();
     fn manual_move(&mut self, direction: Direction, speed: f32) -> Result<(), ()>;
     fn cancel_task(&mut self, interrupter: &CommandOwner) -> Result<(), ()>;
 }

@@ -1,16 +1,17 @@
 #![allow(dead_code)]
 use super::{
-    task::{Direction, ProgramTask, Task},
+    task::{Direction, Task},
     AutonomeMotor, CommandOwner, Motor,
 };
 use std::{
-    sync::{Arc, Mutex},
+    sync::{Arc, RwLock},
     thread,
-    time::Duration,
+    time::{Duration, SystemTime},
 };
 
 #[derive(Debug)]
 pub struct MockMotor {
+    name: String,
     max_step_speed: u32, // steps per second
     step_pos: i32,       // + - from the reset point
     step_size: f64,      // mm per step
@@ -20,8 +21,9 @@ pub struct MockMotor {
 }
 
 impl MockMotor {
-    pub fn new(max_step_speed: u32, step_size: f64) -> Arc<Mutex<MockMotor>> {
-        let motor_ref = Arc::new(Mutex::new(MockMotor {
+    pub fn new(name: String, max_step_speed: u32, step_size: f64) -> Arc<RwLock<MockMotor>> {
+        let motor_ref = Arc::new(RwLock::new(MockMotor {
+            name: name,
             step_pos: 0i32,
             max_step_speed: max_step_speed,
             current_task: None,
@@ -31,23 +33,46 @@ impl MockMotor {
         }));
         MockMotor::start(motor_ref)
     }
-    fn start(motor_ref: Arc<Mutex<MockMotor>>) -> Arc<Mutex<MockMotor>> {
+    fn start(motor_ref: Arc<RwLock<MockMotor>>) -> Arc<RwLock<MockMotor>> {
         let inner_motor = motor_ref.clone();
+        let name = motor_ref.read().unwrap().name.clone();
         std::thread::spawn(move || {
             loop {
                 thread::sleep(Duration::new(0, 1000));
-                let mut driver = inner_motor.lock().unwrap();
-                if driver.current_task.is_none() {
-                    if driver.tasks.len() > 0 {
-                        driver.current_task = driver.tasks.pop();
-                    } else {
-                        drop(driver);
-                        // unlock driver and continue after rest
-                        thread::sleep(Duration::new(0, 100_000));
+                let driver = inner_motor.read().unwrap();
+                match driver.current_task {
+                    None => {
+                        if driver.tasks.len() > 0 {
+                            drop(driver);
+                            let mut driver_write = inner_motor.write().unwrap();
+                            driver_write.current_task = Some(driver_write.tasks.remove(0));
+                            match driver_write.current_task.as_mut().unwrap() {
+                                Task::PROGRAM(p) => {
+                                    println!(
+                                        "{} {} - start new task {} {:?}",
+                                        name, p.sqn, p.destination, p.duration
+                                    );
+                                    p.start_time = SystemTime::now();
+                                }
+                                Task::NOOP(sqn, d) => {
+                                    println!("{} {} - sleep for noop {:?}", name, sqn, d);
+                                    thread::sleep(d.clone());
+                                    driver_write.current_task = None;
+                                }
+                                _ => {}
+                            }
+                        } else {
+                            drop(driver);
+                            // unlock driver and continue after rest
+                            thread::sleep(Duration::new(0, 100_000));
+                        }
                     }
-                } else {
-                    driver.poll();
-                }
+                    Some(_) => {
+                        drop(driver);
+                        let mut driver_write = inner_motor.write().unwrap();
+                        let _ = driver_write.poll();
+                    }
+                };
             }
         });
         motor_ref
@@ -65,11 +90,18 @@ impl Motor for MockMotor {
 
     fn poll(&mut self) -> Result<(), ()> {
         if let Some(task) = self.current_task.as_mut() {
-            if let Some(dir) = task.is_step_required() {
+            if let Some(dir) = task.is_step_required(self.step_size) {
                 task.step_done();
                 match dir {
                     Direction::LEFT => self.step_pos -= 1,
                     Direction::RIGHT => self.step_pos += 1,
+                }
+            } else {
+                match task {
+                    Task::PROGRAM(p) if p.start_time.elapsed().unwrap() >= p.duration => {
+                        self.current_task = None
+                    }
+                    _ => {}
                 }
             }
         }
@@ -78,16 +110,16 @@ impl Motor for MockMotor {
 }
 
 impl AutonomeMotor for MockMotor {
-    fn exec_task(&mut self, task: ProgramTask) -> Result<(), ()> {
+    fn exec_task(&mut self, task: Task) -> Result<(), ()> {
         if self.current_task.is_none() {
-            self.current_task = Some(Task::PROGRAM(task));
+            self.current_task = Some(task);
             Ok(())
         } else {
             Err(())
         }
     }
-    fn query_task(&mut self, new_task: ProgramTask) -> () {
-        self.tasks.push(Task::PROGRAM(new_task));
+    fn query_task(&mut self, new_task: Task) -> () {
+        self.tasks.push(new_task);
     }
     fn manual_move(&mut self, direction: Direction, speed: f32) -> Result<(), ()> {
         self.cancel_task(&CommandOwner::MANUAL)?;

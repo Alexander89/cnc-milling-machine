@@ -1,5 +1,5 @@
 use super::{
-    task::{Direction, ProgramTask, Task},
+    task::{Direction, Task},
     AutonomeMotor, CommandOwner, Motor,
 };
 use crate::switch::Switch;
@@ -87,7 +87,7 @@ impl StepMotor {
                         thread::sleep(Duration::new(0, 1000));
                     }
                 } else {
-                    driver.poll();
+                    let _ = driver.poll();
                 }
             }
         });
@@ -107,7 +107,7 @@ impl Motor for StepMotor {
 
     fn poll(&mut self) -> Result<(), ()> {
         if let Some(task) = self.current_task.as_mut() {
-            if let Some(dir) = task.is_step_required() {
+            if let Some(dir) = task.is_step_required(self.step_size) {
                 fn step_done(step_pos: &mut i32, task: &mut Task, dir: &Direction) -> () {
                     task.step_done();
                     match dir {
@@ -132,7 +132,7 @@ impl Motor for StepMotor {
                     }
                 };
 
-                if let Some(switch) = end_switch.as_mut() {
+                let res = if let Some(switch) = end_switch.as_mut() {
                     if switch.is_closed() {
                         Err(())
                     } else {
@@ -144,7 +144,9 @@ impl Motor for StepMotor {
                     self.pull.toggle();
                     step_done(&mut self.step_pos, task, &dir);
                     Ok(())
-                }
+                };
+
+                res
             } else {
                 Ok(())
             }
@@ -155,16 +157,16 @@ impl Motor for StepMotor {
 }
 
 impl AutonomeMotor for StepMotor {
-    fn exec_task(&mut self, task: ProgramTask) -> Result<(), ()> {
+    fn exec_task(&mut self, task: Task) -> Result<(), ()> {
         if self.current_task.is_none() {
-            self.current_task = Some(Task::PROGRAM(task));
+            self.current_task = Some(task);
             Ok(())
         } else {
             Err(())
         }
     }
-    fn query_task(&mut self, new_task: ProgramTask) -> () {
-        self.tasks.push(Task::PROGRAM(new_task));
+    fn query_task(&mut self, new_task: Task) -> () {
+        self.tasks.push(new_task);
     }
     fn manual_move(&mut self, direction: Direction, speed: f32) -> Result<(), ()> {
         self.cancel_task(&CommandOwner::MANUAL)?;

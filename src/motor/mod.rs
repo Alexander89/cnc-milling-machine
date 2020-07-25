@@ -40,19 +40,19 @@ impl InnerTask {
     pub fn from_task(
         t: Task,
         current_pos: Location<i64>,
-        step_size: f64,
+        step_sizes: Location<f64>,
         max_speed: f64,
     ) -> InnerTask {
         match t {
             Task::Manual(task) => {
-                let x = task.move_x_speed * -1_000.0f64;
-                let y = task.move_y_speed * -1_000.0f64;
-                let z = task.move_z_speed * -1_000.0f64;
+                let x = task.move_x_speed * -2000000.0f64;
+                let y = task.move_y_speed * -2000000.0f64;
+                let z = task.move_z_speed * -2000000.0f64;
 
                 let pos_f64: Location<f64> = current_pos.into();
                 let delta = Location { x: x, y: y, z: z };
                 let destination = pos_f64 + Location { x: x, y: y, z: z };
-                let distance_vec = destination.clone() / step_size;
+                let distance_vec = destination.clone() / step_sizes;
                 let distance = distance_vec.distance();
 
                 InnerTask {
@@ -72,7 +72,7 @@ impl InnerTask {
                 ..
             }) => {
                 let pos_f64: Location<f64> = current_pos.into();
-                let delta_in_steps = delta / step_size;
+                let delta_in_steps = delta / step_sizes;
                 let destination = delta_in_steps.clone() - pos_f64;
 
                 let duration = Duration::from_secs_f64(distance / speed.unwrap_or(max_speed));
@@ -140,6 +140,13 @@ impl MotorControllerThread {
             x: self.x_step.load(Relaxed),
             y: self.y_step.load(Relaxed),
             z: self.z_step.load(Relaxed),
+        }
+    }
+    fn get_step_sizes(&self) -> Location<f64>{
+        Location {
+            x: self.motor_x.get_step_size(),
+            y: self.motor_y.get_step_size(),
+            z: self.motor_z.get_step_size(),
         }
     }
     pub fn run(&mut self) -> () {
@@ -217,7 +224,7 @@ impl MotorControllerThread {
                         let next = lock.remove(0);
                         self.state.store(next.machine_state().into(), Relaxed);
                         self.current_task = Some((
-                            InnerTask::from_task(next, self.get_pos(), 0.01, 5.0),
+                            InnerTask::from_task(next, self.get_pos(), self.get_step_sizes(), 10.0),
                             self.get_pos(),
                             SystemTime::now(),
                         ));
@@ -243,10 +250,10 @@ impl MotorControllerThread {
 pub struct MotorController {
     thread: thread::JoinHandle<()>,
     ref_location: Location<i64>,
-    step_size: f64,
     cancel_task: Arc<AtomicBool>,
     state: Arc<AtomicU32>,
     task_query: Arc<Mutex<Vec<Task>>>,
+    step_sizes: Location<f64>,
     x: Arc<AtomicI64>,
     y: Arc<AtomicI64>,
     z: Arc<AtomicI64>,
@@ -258,6 +265,12 @@ impl MotorController {
         let state = Arc::new(AtomicU32::new(0));
 
         let task_query = Arc::new(Mutex::new(Vec::new()));
+        let step_sizes = Location {
+            x: motor_x.get_step_size(),
+            y: motor_y.get_step_size(),
+            z: motor_z.get_step_size(),
+        };
+
         let x = motor_x.get_pos_ref();
         let y = motor_y.get_pos_ref();
         let z = motor_z.get_pos_ref();
@@ -286,8 +299,8 @@ impl MotorController {
             thread: thread,
             state: state,
             ref_location: Location { x: 0, y: 0, z: 0 },
-            step_size: 0.01, // mm
             cancel_task: cancel_task,
+            step_sizes: step_sizes,
             x: x,
             y: y,
             z: z,
@@ -329,12 +342,13 @@ impl MotorController {
     }
     pub fn get_pos(&self) -> Location<f64> {
         let relative: Location<f64> = (self.motor_pos() - self.ref_location.clone()).into();
-        relative * self.step_size
+        relative * self.step_sizes.clone()
     }
 }
 
 pub trait Driver: std::fmt::Debug {
     fn do_step(&mut self, direction: &Direction) -> Result<Direction>;
+    fn get_step_size(&self) -> f64;
 }
 
 #[derive(Debug)]
@@ -342,29 +356,28 @@ pub struct MotorInner {
     name: String,
     max_step_speed: u32, // steps per second
     driver: Box<dyn Driver + Send>,
-    step_size: f64, // mm per step
 }
 
 #[derive(Debug)]
 pub struct Motor {
     pos: Arc<AtomicI64>,
     inner: Arc<Mutex<MotorInner>>,
+    step_size: f64,  // mm per step
 }
 
 impl Motor {
     pub fn new(
         name: String,
-        step_size: f64,
         max_step_speed: u32,
         driver: Box<dyn Driver + Send>,
     ) -> Self {
         Motor {
             pos: Arc::new(AtomicI64::new(0)),
+            step_size: driver.get_step_size(),
             inner: Arc::new(Mutex::new(MotorInner {
                 name: name,
                 max_step_speed: max_step_speed, // steps per second
                 driver: driver,
-                step_size: step_size, // mm per step
             })),
         }
     }
@@ -384,11 +397,14 @@ impl Motor {
                 (*self.pos).fetch_add(1, Relaxed);
                 Ok(())
             }
-            e @ Err(_) => e.map(|_| ()),
+            Err(_) => Ok(()),
         }
     }
     pub fn get_pos_ref(&self) -> Arc<AtomicI64> {
         self.pos.clone()
+    }
+    pub fn get_step_size(&self) -> f64 {
+        self.step_size
     }
 }
 
@@ -412,6 +428,9 @@ impl Driver for MockMotor {
         };
 
         Ok(direction.clone())
+    }
+    fn get_step_size(&self) -> f64 {
+        0.01
     }
 }
 
@@ -513,5 +532,8 @@ impl Driver for StepMotor {
             self.pull.toggle();
             Ok(self.current_direction.clone())
         }
+    }
+    fn get_step_size(&self) -> f64 {
+        self.step_size
     }
 }

@@ -186,6 +186,34 @@ where
         }
     }
 }
+impl<T: Mul<Output = T>> Mul<Location<T>> for Location<T>
+where
+    T: Debug + PartialEq + Copy,
+{
+    type Output = Self;
+
+    fn mul(self, factor: Self) -> Self {
+        Self {
+            x: self.x * factor.x,
+            y: self.y * factor.y,
+            z: self.z * factor.z,
+        }
+    }
+}
+impl<T: Div<Output = T>> Div<Location<T>> for Location<T>
+where
+    T: Debug + PartialEq + Copy,
+{
+    type Output = Self;
+
+    fn div(self, factor: Self) -> Self {
+        Self {
+            x: self.x / factor.x,
+            y: self.y / factor.y,
+            z: self.z / factor.z,
+        }
+    }
+}
 impl<T: Div<Output = T>> Div<T> for Location<T>
 where
     T: Debug + PartialEq + Copy,

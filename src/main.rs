@@ -3,7 +3,7 @@ mod program;
 mod switch;
 mod types;
 
-use crate::motor::{MockMotor, Motor, MotorController};
+use crate::motor::{StepMotor, Motor, MotorController};
 use crate::program::{NextInstruction, Program};
 use crate::types::{Location, MachineState};
 use gilrs::{Axis, Button, Event, EventType, Gilrs};
@@ -28,30 +28,26 @@ fn main() {
         panic!("no gamepad connected");
     }
 
-    let step_size = 0.01f64; // 2mm per Round / 1.8° per step (0.02 Um per step) => 0.01 mm per step
     let speed = 5_000; // 2mm per Round / 1.8° per step (0.02 Um per step) => 0.01 mm per step
 
-    // let motor_x = StepMotor::new(17, 24, None, None, None, 5000, step_size);
-    // let motor_y = StepMotor::new(18, 23, None, Some(26), None, 5000, step_size);
-    // let motor_z = StepMotor::new(16, 25, None, None, None, 5000, step_size);
+    let stepper_x = StepMotor::new(16, 12, None, Some(26), Some(19), speed, 0.004f64);
+    let stepper_y = StepMotor::new(25, 24, None, Some(6), Some(5), speed, 0.01f64);
+    let stepper_z = StepMotor::new(23, 18, None, Some(27), Some(17), speed, 0.01f64);
 
     let motor_x = Motor::new(
         "x".to_string(),
-        step_size,
         speed,
-        Box::new(MockMotor::new()),
+        Box::new(stepper_x),
     );
     let motor_y = Motor::new(
         "y".to_string(),
-        step_size,
         speed,
-        Box::new(MockMotor::new()),
+        Box::new(stepper_y),
     );
     let motor_z = Motor::new(
         "z".to_string(),
-        step_size,
         speed,
-        Box::new(MockMotor::new()),
+        Box::new(stepper_z),
     );
 
     let mut cnc = MotorController::new(motor_x, motor_y, motor_z);
@@ -59,15 +55,16 @@ fn main() {
 
     // motor.manual_move(Direction::LEFT, 1000.0f32).expect("should move");
     let available_progs = vec![
+        "text.gcode",
+        "calibrate.gcode",
         "./example.gcode",
         "./unknown.gcode",
         "./notThere.gcode",
         "linearExample.gcode",
-        "one.gcode",
         "longtest.gcode",
     ];
-    let mut selected_program = "one.gcode";
-    let mut program_select_cursor = 4;
+    let mut selected_program = "text.gcode";
+    let mut program_select_cursor = 0;
     let mut current_mode: Mode = Mode::MANUAL;
     let mut input_reduce: u8 = 0;
     let mut prog: Option<program::Program> = None;
@@ -78,12 +75,12 @@ fn main() {
     let mut display_counter = 0;
 
     'running: loop {
-        thread::sleep(Duration::new(0, 10_000_000));
+        thread::sleep(Duration::new(0, 5_000_000));
         display_counter += 1;
         if display_counter >= 30 {
             let pos = cnc.get_pos();
             if last != pos {
-                println!("x {} y {} z {}", pos.x, pos.y, pos.z);
+                println!("pos x {} y {} z {}", pos.x, pos.y, pos.z);
                 last = pos;
             }
             display_counter = 0;
@@ -105,9 +102,10 @@ fn main() {
                     }
                     EventType::ButtonReleased(Button::Start, _)
                     | EventType::ButtonReleased(Button::Mode, _) => {
-                        if let Ok(load_prog) = Program::new(selected_program, 10.0) {
+                        if let Ok(load_prog) = Program::new(selected_program, 1.0) {
                             prog = Some(load_prog);
                             current_mode = Mode::PROGRAM;
+                            cnc.reset();
                         } else {
                             println!("program is not able to load")
                         }

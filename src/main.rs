@@ -1,11 +1,13 @@
 mod motor;
 mod program;
 mod switch;
-use crate::motor::{AutonomeMotor, CommandOwner, Direction, MockMotor, Motor};
-use crate::program::{NextInstruction, Program};
-use std::{/* fmt::Write, */ ops::DerefMut, thread, time::Duration};
+mod types;
 
+use crate::motor::{MockMotor, Motor, MotorController};
+use crate::program::{NextInstruction, Program};
+use crate::types::{Location, MachineState};
 use gilrs::{Axis, Button, Event, EventType, Gilrs};
+use std::{thread, time::Duration};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Mode {
@@ -27,14 +29,33 @@ fn main() {
     }
 
     let step_size = 0.01f64; // 2mm per Round / 1.8° per step (0.02 Um per step) => 0.01 mm per step
+    let speed = 5_000; // 2mm per Round / 1.8° per step (0.02 Um per step) => 0.01 mm per step
 
     // let motor_x = StepMotor::new(17, 24, None, None, None, 5000, step_size);
     // let motor_y = StepMotor::new(18, 23, None, Some(26), None, 5000, step_size);
     // let motor_z = StepMotor::new(16, 25, None, None, None, 5000, step_size);
 
-    let motor_x = MockMotor::new("x".to_string(), 5000, step_size);
-    let motor_y = MockMotor::new("y".to_string(), 5000, step_size);
-    let motor_z = MockMotor::new("z".to_string(), 5000, step_size);
+    let motor_x = Motor::new(
+        "x".to_string(),
+        step_size,
+        speed,
+        Box::new(MockMotor::new()),
+    );
+    let motor_y = Motor::new(
+        "y".to_string(),
+        step_size,
+        speed,
+        Box::new(MockMotor::new()),
+    );
+    let motor_z = Motor::new(
+        "z".to_string(),
+        step_size,
+        speed,
+        Box::new(MockMotor::new()),
+    );
+
+    let mut cnc = MotorController::new(motor_x, motor_y, motor_z);
+    let mut in_prog = false;
 
     // motor.manual_move(Direction::LEFT, 1000.0f32).expect("should move");
     let available_progs = vec![
@@ -42,26 +63,30 @@ fn main() {
         "./unknown.gcode",
         "./notThere.gcode",
         "linearExample.gcode",
+        "one.gcode",
         "longtest.gcode",
     ];
-    let mut selected_program = "linearExample.gcode";
-    let mut program_select_cursor = 0usize;
+    let mut selected_program = "one.gcode";
+    let mut program_select_cursor = 4;
     let mut current_mode: Mode = Mode::MANUAL;
     let mut input_reduce: u8 = 0;
     let mut prog: Option<program::Program> = None;
 
-    let mut last = (0.0f64, 0.0f64, 0.0f64);
+    let mut last = Location::default();
+    let mut control = Location::default();
+    let mut last_control = control.clone();
+    let mut display_counter = 0;
 
     'running: loop {
         thread::sleep(Duration::new(0, 10_000_000));
-        {
-            let x = motor_x.read().unwrap().get_pos();
-            let y = motor_y.read().unwrap().get_pos();
-            let z = motor_z.read().unwrap().get_pos();
-            if last.0 != x || last.1 != y || last.2 != z {
-                println!("x {} y {} z {}", x, y, z,);
-                last = (x, y, z);
+        display_counter += 1;
+        if display_counter >= 30 {
+            let pos = cnc.get_pos();
+            if last != pos {
+                println!("x {} y {} z {}", pos.x, pos.y, pos.z);
+                last = pos;
             }
+            display_counter = 0;
         }
         if current_mode == Mode::MANUAL {
             // controller just every 10th tick
@@ -80,92 +105,43 @@ fn main() {
                     }
                     EventType::ButtonReleased(Button::Start, _)
                     | EventType::ButtonReleased(Button::Mode, _) => {
-                        if let Ok(load_prog) = Program::new(selected_program, 2.0, 0.1) {
+                        if let Ok(load_prog) = Program::new(selected_program, 10.0) {
                             prog = Some(load_prog);
                             current_mode = Mode::PROGRAM;
                         } else {
                             println!("program is not able to load")
                         }
                     }
-                    EventType::AxisChanged(Axis::LeftStickY, value, _) => {
-                        if value > 0.08f32 {
-                            motor_y
-                                .write()
-                                .unwrap()
-                                .deref_mut()
-                                .manual_move(Direction::LEFT, (value - 0.08) * 5000.0f32)
-                                .unwrap();
-                        } else if value < -0.08f32 {
-                            motor_y
-                                .write()
-                                .unwrap()
-                                .deref_mut()
-                                .manual_move(Direction::RIGHT, (value + 0.08) * -5000.0f32)
-                                .unwrap();
+                    EventType::AxisChanged(Axis::LeftStickX, value, _) => {
+                        if value > 0.1 {
+                            control.x = (value as f64 - 0.1) / 9.0 * -10.0;
+                        } else if value < -0.1 {
+                            control.x = (value as f64 + 0.1) / 9.0 * -10.0;
                         } else {
-                            motor_y
-                                .write()
-                                .unwrap()
-                                .deref_mut()
-                                .cancel_task(&CommandOwner::MANUAL)
-                                .unwrap();
+                            control.x = 0.0;
                         }
                     }
-                    EventType::AxisChanged(Axis::LeftStickX, value, _) => {
-                        if value > 0.08f32 {
-                            motor_x
-                                .write()
-                                .unwrap()
-                                .deref_mut()
-                                .manual_move(Direction::LEFT, (value - 0.08) * 5000.0f32)
-                                .unwrap();
-                        } else if value < -0.08f32 {
-                            motor_x
-                                .write()
-                                .unwrap()
-                                .deref_mut()
-                                .manual_move(Direction::RIGHT, (value + 0.08) * -5000.0f32)
-                                .unwrap();
+                    EventType::AxisChanged(Axis::LeftStickY, value, _) => {
+                        if value > 0.1 {
+                            control.y = (value as f64 - 0.1) / 9.0 * 10.0;
+                        } else if value < -0.1 {
+                            control.y = (value as f64 + 0.1) / 9.0 * 10.0;
                         } else {
-                            motor_x
-                                .write()
-                                .unwrap()
-                                .deref_mut()
-                                .cancel_task(&CommandOwner::MANUAL)
-                                .unwrap();
+                            control.y = 0.0;
                         }
                     }
                     EventType::AxisChanged(Axis::RightStickY, value, _) => {
-                        if value > 0.08f32 {
-                            println!("left {}", value);
-                            motor_z
-                                .write()
-                                .unwrap()
-                                .deref_mut()
-                                .manual_move(Direction::LEFT, (value - 0.08) * 5000.0f32)
-                                .unwrap();
-                        } else if value < -0.08f32 {
-                            println!("right {}", value);
-                            motor_z
-                                .write()
-                                .unwrap()
-                                .deref_mut()
-                                .manual_move(Direction::RIGHT, (value + 0.08) * -5000.0f32)
-                                .unwrap();
+                        if value > 0.1 {
+                            control.z = (value as f64 - 0.1) / 9.0 * 10.0;
+                        } else if value < -0.1 {
+                            control.z = (value as f64 + 0.1) / 9.0 * 10.0;
                         } else {
-                            motor_z
-                                .write()
-                                .unwrap()
-                                .deref_mut()
-                                .cancel_task(&CommandOwner::MANUAL)
-                                .unwrap();
+                            control.z = 0.0;
                         }
                     }
                     EventType::ButtonPressed(Button::North, _) => {
                         println!("reset");
-                        motor_x.write().unwrap().deref_mut().reset();
-                        motor_y.write().unwrap().deref_mut().reset();
-                        motor_z.write().unwrap().deref_mut().reset();
+                        cnc.reset();
                     }
                     EventType::ButtonPressed(Button::DPadUp, _) => {
                         if program_select_cursor <= 0 {
@@ -199,6 +175,11 @@ fn main() {
                     _ => {}
                 }
             }
+            if last_control != control {
+                println!("set manual move");
+                cnc.manual_move(control.x, control.y, control.z, 5.0);
+                last_control = control.clone();
+            }
         } else {
             if let Some(p) = prog.as_mut() {
                 'progLoop: for next_instruction in p {
@@ -211,21 +192,7 @@ fn main() {
                     match next_instruction {
                         NextInstruction::Movement(next_movement) => {
                             //println!("Movement: {:?}", next_movement);
-                            motor_x
-                                .write()
-                                .unwrap()
-                                .deref_mut()
-                                .query_task(next_movement.x);
-                            motor_y
-                                .write()
-                                .unwrap()
-                                .deref_mut()
-                                .query_task(next_movement.y);
-                            motor_z
-                                .write()
-                                .unwrap()
-                                .deref_mut()
-                                .query_task(next_movement.z);
+                            cnc.query_task(next_movement);
                         }
                         NextInstruction::Miscellaneous(task) => {
                             println!("Miscellaneous {:?}", task);
@@ -240,6 +207,16 @@ fn main() {
                         }
                         _ => {}
                     };
+                }
+                match (cnc.get_state(), in_prog) {
+                    (MachineState::Idle, true) => {
+                        current_mode = Mode::MANUAL;
+                        in_prog = false;
+                    }
+                    (MachineState::ProgrammTask, false) => {
+                        in_prog = true;
+                    }
+                    _ => (),
                 }
             }
         }

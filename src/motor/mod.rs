@@ -20,13 +20,33 @@ pub type Result<T> = result::Result<T, &'static str>;
 
 const INNER_MANUAL_DISTANCE: f64 = 3_000_000_000_000.0; //(1_000_000.0f64 * 1_000_000.0f64 * 3.0f64).sqrt();
 #[derive(Debug)]
-pub struct InnerTask {
+pub struct InnerTaskProduction {
     start_time: SystemTime,
     destination: Location<i64>,
     delta: Location<i64>,
     duration: Duration,
     distance: f64,
     move_type: MoveType,
+}
+#[derive(Debug)]
+pub enum CalibrateType {
+    None,
+    Min,
+    Max,
+    Middle,
+    ContactPin,
+}
+#[derive(Debug)]
+pub struct InnerTaskCalibrate {
+    x: CalibrateType,
+    y: CalibrateType,
+    z: CalibrateType,
+}
+
+#[derive(Debug)]
+pub enum InnerTask {
+    Production(InnerTaskProduction),
+    Calibrate(InnerTaskCalibrate),
 }
 impl InnerTask {
     /**
@@ -45,9 +65,9 @@ impl InnerTask {
     ) -> InnerTask {
         match t {
             Task::Manual(task) => {
-                let x = task.move_x_speed * -2000000.0f64;
-                let y = task.move_y_speed * -2000000.0f64;
-                let z = task.move_z_speed * -2000000.0f64;
+                let x = task.move_x_speed * -1000000.0f64;
+                let y = task.move_y_speed * -1000000.0f64;
+                let z = task.move_z_speed * -1000000.0f64;
 
                 let pos_f64: Location<f64> = current_pos.into();
                 let delta = Location { x: x, y: y, z: z };
@@ -55,14 +75,14 @@ impl InnerTask {
                 let distance_vec = destination.clone() / step_sizes;
                 let distance = distance_vec.distance();
 
-                InnerTask {
+                InnerTask::Production(InnerTaskProduction {
                     start_time: SystemTime::now(),
                     destination: destination.into(),
                     delta: delta.into(),
                     duration: Duration::new(120, 0),
                     distance: distance,
                     move_type: MoveType::Linear,
-                }
+                })
             }
             Task::Program(Next3dMovement {
                 delta,
@@ -77,15 +97,20 @@ impl InnerTask {
 
                 let duration = Duration::from_secs_f64(distance / speed.unwrap_or(max_speed));
 
-                InnerTask {
+                InnerTask::Production(InnerTaskProduction {
                     start_time: SystemTime::now(),
                     destination: destination.into(),
                     delta: delta_in_steps.into(),
                     duration: duration,
                     distance: distance,
                     move_type: move_type,
-                }
+                })
             }
+            Task::Calibrate(x, y, z) => InnerTask::Calibrate(InnerTaskCalibrate {
+                x: x,
+                y: y,
+                z: z,
+            }),
         }
     }
 }
@@ -106,13 +131,15 @@ pub struct ManualTask {
 pub enum Task {
     Program(Next3dMovement),
     Manual(ManualTask),
+    Calibrate(CalibrateType, CalibrateType, CalibrateType),
 }
 
 impl Task {
     pub fn machine_state(&self) -> MachineState {
         match self {
-            Task::Program(_) => MachineState::ProgrammTask,
+            Task::Program(_) => MachineState::ProgramTask,
             Task::Manual(_) => MachineState::ManualTask,
+            Task::Calibrate(_, _, _) => MachineState::Calibrate,
         }
     }
 }
@@ -122,6 +149,8 @@ struct MotorControllerThread {
     motor_x: Motor,
     motor_y: Motor,
     motor_z: Motor,
+
+    z_calibrate: Switch,
 
     x_step: Arc<AtomicI64>,
     y_step: Arc<AtomicI64>,
@@ -142,7 +171,7 @@ impl MotorControllerThread {
             z: self.z_step.load(Relaxed),
         }
     }
-    fn get_step_sizes(&self) -> Location<f64>{
+    fn get_step_sizes(&self) -> Location<f64> {
         Location {
             x: self.motor_x.get_step_size(),
             y: self.motor_y.get_step_size(),
@@ -157,9 +186,9 @@ impl MotorControllerThread {
             }
             match &self.current_task {
                 Some((
-                    InnerTask {
+                    InnerTask::Production(InnerTaskProduction {
                         duration, delta, ..
-                    },
+                    }),
                     start_pos,
                     start,
                 )) => {
@@ -219,6 +248,43 @@ impl MotorControllerThread {
                         self.current_task = None;
                     }
                 }
+                Some((
+                    InnerTask::Calibrate(InnerTaskCalibrate { z, .. }),
+                    start_pos,
+                    start,
+                )) => {
+                    let runtime = start.elapsed().unwrap().as_micros() as u64;
+                    let move_in_task = (self.get_pos() - start_pos.clone()).abs();
+                    let z_steps = move_in_task.z;
+
+                    if runtime > z_steps * 4_000 {
+                        match z {
+                            CalibrateType::Min => {
+                                if let Err(_) = self.motor_z.step(Direction::Left) {
+                                    self.current_task = None;
+                                }
+                            }
+                            CalibrateType::Max => {
+                                if let Err(_) = self.motor_z.step(Direction::Right) {
+                                    self.current_task = None;
+                                }
+                            }
+                            CalibrateType::Middle => {
+                                println!("impl missing");
+                                self.current_task = None;
+                            }
+                            CalibrateType::ContactPin => {
+                                if let Err(_) = self.motor_z.step(Direction::Right) {
+                                    self.current_task = None;
+                                }
+                                if self.z_calibrate.is_closed() {
+                                    self.current_task = None;
+                                }
+                            }
+                            CalibrateType::None => (),
+                        }
+                    }
+                }
                 None => match self.task_query.lock() {
                     Ok(ref mut lock) if lock.len() > 0 => {
                         let next = lock.remove(0);
@@ -260,7 +326,7 @@ pub struct MotorController {
 }
 
 impl MotorController {
-    pub fn new(motor_x: Motor, motor_y: Motor, motor_z: Motor) -> Self {
+    pub fn new(motor_x: Motor, motor_y: Motor, motor_z: Motor, z_calibrate: Switch) -> Self {
         let cancel_task = Arc::new(AtomicBool::new(false));
         let state = Arc::new(AtomicU32::new(0));
 
@@ -285,6 +351,7 @@ impl MotorController {
                 motor_x: motor_x,
                 motor_y: motor_y,
                 motor_z: motor_z,
+                z_calibrate: z_calibrate,
                 current_task: None,
                 current_location: Location::default(),
                 state: state_inner,
@@ -310,6 +377,9 @@ impl MotorController {
     pub fn query_task(&mut self, task: Next3dMovement) -> () {
         self.task_query.lock().unwrap().push(Task::Program(task));
     }
+    pub fn calibrate(&mut self, x: CalibrateType, y: CalibrateType, z: CalibrateType) -> () {
+        self.task_query.lock().unwrap().push(Task::Calibrate(x, y, z));
+    }
     pub fn get_state(&self) -> MachineState {
         self.state.load(Relaxed).into()
     }
@@ -332,6 +402,9 @@ impl MotorController {
     }
     pub fn reset(&mut self) -> () {
         self.ref_location = self.motor_pos();
+    }
+    pub fn set_pos(&mut self, pos: Location<f64>) -> () {
+        self.ref_location = self.motor_pos() + (pos / self.step_sizes.clone()).into();
     }
     pub fn motor_pos(&self) -> Location<i64> {
         Location {
@@ -362,15 +435,11 @@ pub struct MotorInner {
 pub struct Motor {
     pos: Arc<AtomicI64>,
     inner: Arc<Mutex<MotorInner>>,
-    step_size: f64,  // mm per step
+    step_size: f64, // mm per step
 }
 
 impl Motor {
-    pub fn new(
-        name: String,
-        max_step_speed: u32,
-        driver: Box<dyn Driver + Send>,
-    ) -> Self {
+    pub fn new(name: String, max_step_speed: u32, driver: Box<dyn Driver + Send>) -> Self {
         Motor {
             pos: Arc::new(AtomicI64::new(0)),
             step_size: driver.get_step_size(),

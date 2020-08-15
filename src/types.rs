@@ -9,7 +9,8 @@ use std::{
 pub enum MachineState {
     Idle,
     ManualTask,
-    ProgrammTask,
+    ProgramTask,
+    Calibrate,
     Unknown,
 }
 impl Into<u32> for MachineState {
@@ -17,7 +18,8 @@ impl Into<u32> for MachineState {
         match self {
             MachineState::Idle => 0,
             MachineState::ManualTask => 1,
-            MachineState::ProgrammTask => 2,
+            MachineState::ProgramTask => 2,
+            MachineState::Calibrate => 3,
             MachineState::Unknown => 99,
         }
     }
@@ -27,7 +29,8 @@ impl Into<MachineState> for u32 {
         match self {
             0 => MachineState::Idle,
             1 => MachineState::ManualTask,
-            2 => MachineState::ProgrammTask,
+            2 => MachineState::ProgramTask,
+            3 => MachineState::Calibrate,
             _ => MachineState::Unknown,
         }
     }

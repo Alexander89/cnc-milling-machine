@@ -20,7 +20,7 @@ pub struct Program {
 }
 
 impl Program {
-    pub fn new(path: &str, scaler: f64) -> std::io::Result<Program> {
+    pub fn new(path: &str, scaler: f64, start_pos: Location<f64>) -> std::io::Result<Program> {
         let mut file = File::open(path)?;
         let mut content = String::new();
         file.read_to_string(&mut content)?;
@@ -39,11 +39,7 @@ impl Program {
             current_step: 0,
             scaler: scaler,
             coordinations: Coordinations::Absolute,
-            current_position: Location {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            },
+            current_position: start_pos,
         })
     }
 }

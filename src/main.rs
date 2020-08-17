@@ -3,12 +3,12 @@ mod program;
 mod switch;
 mod types;
 
-use crate::motor::{Motor, MotorController, StepMotor, CalibrateType};
+use crate::motor::{CalibrateType, MockMotor, Motor, MotorController, StepMotor};
 use crate::program::{NextInstruction, Program};
 use crate::switch::Switch;
 use crate::types::{Location, MachineState};
 use gilrs::{Axis, Button, Event, EventType, Gilrs};
-use std::{thread, time::Duration};
+use std::{env, fs, thread, time::Duration};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Mode {
@@ -17,7 +17,31 @@ enum Mode {
     CalibrateZ,
 }
 
+struct Settings {
+    dev_mode: bool,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self { dev_mode: false }
+    }
+}
+impl From<env::Args> for Settings {
+    fn from(args: env::Args) -> Settings {
+        let mut s = Settings::default();
+        for arg in args {
+            if arg == String::from("dev_mode") {
+                s.dev_mode = true;
+            }
+        }
+
+        s
+    }
+}
+
 fn main() {
+    let settings = Settings::from(env::args());
+
     let mut gilrs = Gilrs::new()
         .map_err(|_| "gamepad not valid")
         .expect("controler is missing");
@@ -32,30 +56,71 @@ fn main() {
 
     let speed = 1_000; // 2mm per Round / 1.8° per step (0.02 Um per step) => 0.01 mm per step
 
-    let stepper_x = StepMotor::new(18, 27, None, Some(21), Some(20), speed, 0.0040f64);
-    let stepper_y = StepMotor::new(22, 23, None, Some(19), Some(26), speed, 0.0042f64);
-    let stepper_z = StepMotor::new(25, 24, None, Some(5), Some(6), speed, 0.0042f64);
-
-    let z_calibrate = Switch::new(16, false);
-
-    let motor_x = Motor::new("x".to_string(), speed, Box::new(stepper_x));
-    let motor_y = Motor::new("y".to_string(), speed, Box::new(stepper_y));
-    let motor_z = Motor::new("z".to_string(), speed, Box::new(stepper_z));
+    let (z_calibrate, motor_x, motor_y, motor_z) = if settings.dev_mode {
+        (
+            None,
+            Motor::new("x".to_string(), speed, Box::new(MockMotor::new(0.0040f64))),
+            Motor::new("y".to_string(), speed, Box::new(MockMotor::new(0.0042f64))),
+            Motor::new("z".to_string(), speed, Box::new(MockMotor::new(0.0042f64))),
+        )
+    } else {
+        (
+            Some(Switch::new(16, false)),
+            Motor::new(
+                "x".to_string(),
+                speed,
+                Box::new(StepMotor::new(
+                    18,
+                    27,
+                    None,
+                    Some(21),
+                    Some(20),
+                    speed,
+                    0.0040f64,
+                )),
+            ),
+            Motor::new(
+                "y".to_string(),
+                speed,
+                Box::new(StepMotor::new(
+                    22,
+                    23,
+                    None,
+                    Some(19),
+                    Some(26),
+                    speed,
+                    0.0042f64,
+                )),
+            ),
+            Motor::new(
+                "z".to_string(),
+                speed,
+                Box::new(StepMotor::new(
+                    25,
+                    24,
+                    None,
+                    Some(5),
+                    Some(6),
+                    speed,
+                    0.0042f64,
+                )),
+            ),
+        )
+    };
 
     let mut cnc = MotorController::new(motor_x, motor_y, motor_z, z_calibrate);
     let mut in_opp = false;
 
-    // motor.manual_move(Direction::LEFT, 1000.0f32).expect("should move");
-    let available_progs = vec![
-        "text.gcode",
-        "calibrate.gcode",
-        "./example.gcode",
-        "./unknown.gcode",
-        "./notThere.gcode",
-        "linearExample.gcode",
-        "longtest.gcode",
-    ];
-    let mut selected_program = "text.gcode";
+    let available_progs = fs::read_dir(".")
+        .unwrap()
+        .map(|res| res.expect("ok").path().to_str().unwrap().to_owned())
+        .filter(|name| name.ends_with(".gcode"))
+        .collect::<Vec<String>>();
+    for (i, p) in available_progs.iter().enumerate() {
+        println!("{}: {}", i, p);
+    }
+
+    let mut selected_program = available_progs.get(0);
     let mut program_select_cursor = 0;
     let mut current_mode: Mode = Mode::Manual;
     let mut input_reduce: u8 = 0;
@@ -70,10 +135,10 @@ fn main() {
     'running: loop {
         thread::sleep(Duration::new(0, 5_000_000));
         display_counter += 1;
-        if display_counter >= 30 {
+        if display_counter >= 20 {
             let pos = cnc.get_pos();
             if last != pos {
-                println!("pos x {} y {} z {}", pos.x, pos.y, pos.z);
+                println!("  {{ x: {}, y: {}, z: {} }},", pos.x, pos.y, pos.z);
                 last = pos;
             }
             display_counter = 0;
@@ -99,11 +164,15 @@ fn main() {
                             if !calibrated {
                                 cnc.reset();
                             }
-                            if let Ok(load_prog) = Program::new(selected_program, 1.0, cnc.get_pos()) {
-                                prog = Some(load_prog);
-                                current_mode = Mode::Program;
+                            if let Some(sel_prog) = selected_program {
+                                if let Ok(load_prog) = Program::new(sel_prog, 1.0, cnc.get_pos()) {
+                                    prog = Some(load_prog);
+                                    current_mode = Mode::Program;
+                                } else {
+                                    println!("program is not able to load")
+                                }
                             } else {
-                                println!("program is not able to load")
+                                println!("No Program selected")
                             }
                         }
                         EventType::AxisChanged(Axis::LeftStickX, value, _) => {
@@ -171,8 +240,8 @@ fn main() {
                             );
                         }
                         EventType::ButtonPressed(Button::South, _) => {
-                            selected_program = available_progs.get(program_select_cursor).unwrap();
-                            println!("select {}", selected_program);
+                            selected_program = available_progs.get(program_select_cursor);
+                            println!("select {:?}", selected_program);
                         }
                         // add cross to select a program
                         _ => {}

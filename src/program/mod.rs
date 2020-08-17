@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use crate::types::{Location, MoveType};
+use crate::types::{CircleDirection, CircleMovement, LinearMovement, Location, MoveType};
 use gcode::{buffers::DefaultBuffers, GCode, Mnemonic, Nop, Parser};
 use std::{fs::File, io::prelude::*};
 
@@ -53,10 +53,6 @@ pub struct Next3dMovement {
     pub from: Location<f64>,
     /** target pos */
     pub to: Location<f64>,
-    /** delta move */
-    pub delta: Location<f64>,
-    /** delta distance */
-    pub distance: f64,
     /** movement type (Linear, Rapid, Bevel, ...) */
     pub move_type: MoveType,
 }
@@ -124,15 +120,16 @@ impl Program {
                 }
                 let next_move = Next3dMovement {
                     speed: None,
-                    delta: delta,
-                    distance: distance,
                     from: self.current_position.clone(),
                     to: self.update_location(
                         code.value_for('X'),
                         code.value_for('Y'),
                         code.value_for('Z'),
                     ),
-                    move_type: MoveType::Rapid,
+                    move_type: MoveType::Rapid(LinearMovement {
+                        delta: delta,
+                        distance: distance,
+                    }),
                 };
                 Some(NextInstruction::Movement(next_move))
             }
@@ -146,34 +143,61 @@ impl Program {
                 if distance == 0.0 {
                     return None;
                 }
-                let speed = if let Some(s) = code.value_for('F') {
-                    Some(s as f64)
-                } else {
-                    None
-                };
+                let speed = code.value_for('F').map(|s| s as f64);
 
                 let next_move = Next3dMovement {
-                    delta: delta,
                     speed: speed,
-                    distance: distance,
                     from: self.current_position.clone(),
                     to: self.update_location(
                         code.value_for('X'),
                         code.value_for('Y'),
                         code.value_for('Z'),
                     ),
-                    move_type: MoveType::Linear,
+                    move_type: MoveType::Linear(LinearMovement {
+                        delta: delta,
+                        distance: distance,
+                    }),
                 };
                 Some(NextInstruction::Movement(next_move))
             }
-            2 => Some(NextInstruction::NotSupported(format!(
-                "{}",
-                code.major_number()
-            ))),
-            3 => Some(NextInstruction::NotSupported(format!(
-                "{}",
-                code.major_number()
-            ))),
+            major_number @ 2 | major_number @ 3 => {
+                let delta = self.move_delta(
+                    code.value_for('X'),
+                    code.value_for('Y'),
+                    code.value_for('Z'),
+                );
+                if delta.distance() == 0.0 {
+                    return None;
+                }
+                let speed = code.value_for('F').map(|s| s as f64);
+                let center = Self::rel_pos(
+                    code.value_for('I'),
+                    code.value_for('J'),
+                    code.value_for('K'),
+                );
+
+                let turn_direction = if major_number == 2 {
+                    CircleDirection::CW
+                } else {
+                    CircleDirection::CCW
+                };
+
+                let next_move = Next3dMovement {
+                    speed: speed,
+                    from: self.current_position.clone(),
+                    to: self.update_location(
+                        code.value_for('X'),
+                        code.value_for('Y'),
+                        code.value_for('Z'),
+                    ),
+                    move_type: MoveType::Circle(CircleMovement {
+                        center: center.clone(),
+                        radius_sq: center.distance_sq(),
+                        turn_direction: turn_direction,
+                    }),
+                };
+                Some(NextInstruction::Movement(next_move))
+            }
             90 => {
                 self.coordinations = Coordinations::Absolute;
                 Some(NextInstruction::InternalInstruction(format!(
@@ -221,32 +245,27 @@ impl Program {
     /// Calculate the move distance to the new coordinate corresponding to the relative or absolute mode
     fn move_delta(&self, x: Option<f32>, y: Option<f32>, z: Option<f32>) -> Location<f64> {
         match self.coordinations {
-            Coordinations::Relative => Location {
-                x: get_or_default(x, 0.0) * self.scaler,
-                y: get_or_default(y, 0.0) * self.scaler,
-                z: get_or_default(z, 0.0) * self.scaler,
-            },
+            Coordinations::Relative => Self::rel_pos(x, y, z),
             Coordinations::Absolute => Location {
-                x: get_or_default(x, self.current_position.x / self.scaler) * self.scaler
-                    - self.current_position.x,
-                y: get_or_default(y, self.current_position.y / self.scaler) * self.scaler
-                    - self.current_position.y,
-                z: get_or_default(z, self.current_position.z / self.scaler) * self.scaler
-                    - self.current_position.z,
+                x: get_or_default(x, self.current_position.x) - self.current_position.x,
+                y: get_or_default(y, self.current_position.y) - self.current_position.y,
+                z: get_or_default(z, self.current_position.z) - self.current_position.z,
             },
+        }
+    }
+
+    fn rel_pos(x: Option<f32>, y: Option<f32>, z: Option<f32>) -> Location<f64> {
+        Location {
+            x: get_or_default(x, 0.0),
+            y: get_or_default(y, 0.0),
+            z: get_or_default(z, 0.0),
         }
     }
 
     /// Update the current Location for the next instruction coordinate corresponding to the relative or absolute mode
     fn update_location(&mut self, x: Option<f32>, y: Option<f32>, z: Option<f32>) -> Location<f64> {
         match self.coordinations {
-            Coordinations::Relative => {
-                self.current_position = Location {
-                    x: self.current_position.x + get_or_default(x, 0.0),
-                    y: self.current_position.y + get_or_default(y, 0.0),
-                    z: self.current_position.z + get_or_default(z, 0.0),
-                }
-            }
+            Coordinations::Relative => self.current_position = Self::rel_pos(x, y, z),
             Coordinations::Absolute => {
                 self.current_position = Location {
                     x: get_or_default(x, self.current_position.x),

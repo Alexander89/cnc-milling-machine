@@ -1,7 +1,11 @@
 #![allow(dead_code)]
 use crate::program::Next3dMovement;
 use crate::switch::Switch;
-use crate::types::{Direction, Location, MachineState, MoveType};
+use crate::types::{
+    CircleDirection, CircleMovement, CircleStep, CircleStepCCW, CircleStepCW, CircleStepDir,
+    Direction, LinearMovement, Location, MachineState, MoveType, SteppedCircleMovement,
+    SteppedLinearMovement, SteppedMoveType,
+};
 use log::{debug, max_level, LevelFilter};
 use rppal::gpio::{Gpio, OutputPin};
 use std::{
@@ -23,10 +27,8 @@ const INNER_MANUAL_DISTANCE: f64 = 3_000_000_000_000.0; //(1_000_000.0f64 * 1_00
 pub struct InnerTaskProduction {
     start_time: SystemTime,
     destination: Location<i64>,
-    delta: Location<i64>,
     duration: Duration,
-    distance: f64,
-    move_type: MoveType,
+    move_type: SteppedMoveType,
 }
 #[derive(Debug)]
 pub enum CalibrateType {
@@ -70,47 +72,90 @@ impl InnerTask {
                 let z = task.move_z_speed * -1000000.0f64;
 
                 let pos_f64: Location<f64> = current_pos.into();
-                let delta = Location { x: x, y: y, z: z };
-                let destination = pos_f64 + Location { x: x, y: y, z: z };
+                let delta = Location::new(x, y, z).into();
+                let destination = pos_f64 + Location::new(x, y, z);
                 let distance_vec = destination.clone() / step_sizes;
                 let distance = distance_vec.distance();
 
                 InnerTask::Production(InnerTaskProduction {
                     start_time: SystemTime::now(),
                     destination: destination.into(),
-                    delta: delta.into(),
                     duration: Duration::new(120, 0),
-                    distance: distance,
-                    move_type: MoveType::Linear,
+                    move_type: SteppedMoveType::Linear(SteppedLinearMovement {
+                        delta: delta,
+                        distance: distance,
+                    }),
                 })
             }
             Task::Program(Next3dMovement {
-                delta,
                 speed,
                 move_type,
-                distance,
+                to,
                 ..
-            }) => {
-                let pos_f64: Location<f64> = current_pos.into();
-                let delta_in_steps = delta / step_sizes;
-                let destination = delta_in_steps.clone() - pos_f64;
+            }) => match move_type {
+                MoveType::Linear(LinearMovement { distance, delta }) => {
+                    let delta_in_steps: Location<i64> = (delta / step_sizes).into();
 
-                let duration = Duration::from_secs_f64(distance / speed.unwrap_or(max_speed));
+                    InnerTask::Production(InnerTaskProduction {
+                        start_time: SystemTime::now(),
+                        destination: delta_in_steps.clone() - current_pos,
+                        duration: Duration::from_secs_f64(distance / speed.unwrap_or(max_speed)),
+                        move_type: SteppedMoveType::Linear(SteppedLinearMovement {
+                            delta: delta_in_steps,
+                            distance: distance,
+                        }),
+                    })
+                }
+                MoveType::Rapid(LinearMovement { distance, delta }) => {
+                    let delta_in_steps = delta / step_sizes;
 
-                InnerTask::Production(InnerTaskProduction {
-                    start_time: SystemTime::now(),
-                    destination: destination.into(),
-                    delta: delta_in_steps.into(),
-                    duration: duration,
-                    distance: distance,
-                    move_type: move_type,
-                })
+                    InnerTask::Production(InnerTaskProduction {
+                        start_time: SystemTime::now(),
+                        destination: (delta_in_steps.clone() - current_pos.into()).into(),
+                        duration: Duration::from_secs_f64(distance / speed.unwrap_or(max_speed)),
+                        move_type: SteppedMoveType::Rapid(SteppedLinearMovement {
+                            delta: delta_in_steps.into(),
+                            distance: distance,
+                        }),
+                    })
+                }
+                MoveType::Circle(CircleMovement {
+                    center,
+                    turn_direction,
+                    radius_sq,
+                }) => {
+                    println!("{}", to);
+                    let destination = to / step_sizes.clone();
+
+                    let step_speed =
+                        speed.unwrap_or(2.0).min(max_speed).max(0.05) / step_sizes.max();
+                    let step_center = (center.clone() / step_sizes.clone()).into();
+                    // println!(
+                    //     "{}  * {} = {} into {}",
+                    //     center,
+                    //     step_sizes,
+                    //     center.clone() * step_sizes.clone(),
+                    //     step_center
+                    // );
+
+                    InnerTask::Production(InnerTaskProduction {
+                        start_time: SystemTime::now(),
+                        destination: destination.into(),
+                        duration: Duration::from_secs_f64(0.0f64),
+                        move_type: SteppedMoveType::Circle(SteppedCircleMovement {
+                            center: step_center,
+                            radius_sq: radius_sq,
+                            step_sizes: step_sizes,
+                            turn_direction: turn_direction,
+                            speed: step_speed,
+                        }),
+                    })
+                }
+            },
+
+            Task::Calibrate(x, y, z) => {
+                InnerTask::Calibrate(InnerTaskCalibrate { x: x, y: y, z: z })
             }
-            Task::Calibrate(x, y, z) => InnerTask::Calibrate(InnerTaskCalibrate {
-                x: x,
-                y: y,
-                z: z,
-            }),
         }
     }
 }
@@ -150,7 +195,7 @@ struct MotorControllerThread {
     motor_y: Motor,
     motor_z: Motor,
 
-    z_calibrate: Switch,
+    z_calibrate: Option<Switch>,
 
     x_step: Arc<AtomicI64>,
     y_step: Arc<AtomicI64>,
@@ -179,6 +224,9 @@ impl MotorControllerThread {
         }
     }
     pub fn run(&mut self) -> () {
+        let mut curve_last_step = SystemTime::now();
+        let mut curve_close_to_destination = false;
+        let mut last_distance_to_destination = 100;
         loop {
             if self.cancel_task.load(Relaxed) == true {
                 self.current_task = None;
@@ -187,72 +235,189 @@ impl MotorControllerThread {
             match &self.current_task {
                 Some((
                     InnerTask::Production(InnerTaskProduction {
-                        duration, delta, ..
+                        duration,
+                        move_type,
+                        destination,
+                        ..
                     }),
                     start_pos,
                     start,
-                )) => {
-                    if let Ok(elapsed) = start.elapsed() {
-                        let runtime = elapsed.as_micros() as u64;
-                        let job_runtime = duration.as_micros() as u64;
+                )) => match move_type {
+                    SteppedMoveType::Linear(SteppedLinearMovement { delta, .. })
+                    | SteppedMoveType::Rapid(SteppedLinearMovement { delta, .. }) => {
+                        if let Ok(elapsed) = start.elapsed() {
+                            let runtime = elapsed.as_micros() as u64;
+                            let job_runtime = duration.as_micros() as u64;
 
-                        let move_in_task = (self.get_pos() - start_pos.clone()).abs();
+                            let move_in_task = (self.get_pos() - start_pos.clone()).abs();
 
-                        let (x, y, z) = delta.split();
-                        debug!(
-                            "loop: start {} move_in_task {} delta {}",
-                            start_pos, move_in_task, delta
-                        );
-                        if (delta.abs() - move_in_task.clone() == Location::default())
-                            || (x == 0 && y == 0 && z == 0)
-                        {
-                            self.current_task = None;
+                            let delta_u64: Location<i64> = delta.clone().into();
+                            let (x, y, z) = delta_u64.split();
+                            debug!(
+                                "loop: start {} move_in_task {} delta {}",
+                                start_pos, move_in_task, delta
+                            );
+                            if (delta_u64.abs() - move_in_task.clone() == Location::default())
+                                || (x == 0 && y == 0 && z == 0)
+                            {
+                                self.current_task = None;
+                            } else {
+                                if x != 0
+                                    && x.abs() as u64 != move_in_task.x
+                                    && runtime > job_runtime / x.abs() as u64 * move_in_task.x
+                                {
+                                    let dir = if x > 0 {
+                                        Direction::Right
+                                    } else {
+                                        Direction::Left
+                                    };
+                                    self.motor_x.step(dir).expect("Step failed X");
+                                }
+
+                                if y != 0
+                                    && y.abs() as u64 != move_in_task.y
+                                    && runtime > job_runtime / y.abs() as u64 * move_in_task.y
+                                {
+                                    let dir = if y > 0 {
+                                        Direction::Right
+                                    } else {
+                                        Direction::Left
+                                    };
+                                    self.motor_y.step(dir).expect("Step failed Y");
+                                }
+
+                                if z != 0
+                                    && z.abs() as u64 != move_in_task.z
+                                    && runtime > job_runtime / z.abs() as u64 * move_in_task.z
+                                {
+                                    let dir = if z > 0 {
+                                        Direction::Right
+                                    } else {
+                                        Direction::Left
+                                    };
+                                    self.motor_z.step(dir).expect("Step failed Z");
+                                }
+                            }
                         } else {
-                            if x != 0
-                                && x.abs() as u64 != move_in_task.x
-                                && runtime > job_runtime / x.abs() as u64 * move_in_task.x
-                            {
-                                let dir = if x > 0 {
-                                    Direction::Right
-                                } else {
-                                    Direction::Left
-                                };
-                                self.motor_x.step(dir).expect("Step failed X");
-                            }
+                            self.current_task = None;
+                        }
+                    }
+                    SteppedMoveType::Circle(SteppedCircleMovement {
+                        turn_direction,
+                        center,
+                        radius_sq,
+                        step_sizes,
+                        speed,
+                        ..
+                    }) => {
+                        if curve_last_step.elapsed().unwrap().as_secs_f64() <= 1.0 / *speed {
+                            continue;
+                        }
+                        curve_last_step = SystemTime::now();
 
-                            if y != 0
-                                && y.abs() as u64 != move_in_task.y
-                                && runtime > job_runtime / y.abs() as u64 * move_in_task.y
-                            {
-                                let dir = if y > 0 {
-                                    Direction::Right
-                                } else {
-                                    Direction::Left
-                                };
-                                self.motor_y.step(dir).expect("Step failed Y");
+                        let abs_center: Location<i64> = start_pos.clone() + center.clone().into();
+                        let rel_to_center = self.get_pos() - abs_center.clone();
+                        // let abs_center_f: Location<f64> = abs_center.clone().into();
+                        // println!("{}", abs_center_f / step_sizes.clone());
+                        let step_dir: CircleStep = match turn_direction {
+                            CircleDirection::CW => {
+                                let next_step: CircleStepCW = rel_to_center.into();
+                                next_step.into()
                             }
-
-                            if z != 0
-                                && z.abs() as u64 != move_in_task.z
-                                && runtime > job_runtime / z.abs() as u64 * move_in_task.z
-                            {
-                                let dir = if z > 0 {
-                                    Direction::Right
-                                } else {
-                                    Direction::Left
-                                };
-                                self.motor_z.step(dir).expect("Step failed Z");
+                            CircleDirection::CCW => {
+                                let next_step: CircleStepCCW = rel_to_center.into();
+                                next_step.into()
+                            }
+                        };
+                        match step_dir.main {
+                            CircleStepDir::Right => {
+                                self.motor_x.step(Direction::Right).expect("Step failed X")
+                            }
+                            CircleStepDir::Down => {
+                                self.motor_y.step(Direction::Left).expect("Step failed Y")
+                            }
+                            CircleStepDir::Left => {
+                                self.motor_x.step(Direction::Left).expect("Step failed X")
+                            }
+                            CircleStepDir::Up => {
+                                self.motor_y.step(Direction::Right).expect("Step failed Y")
                             }
                         }
-                    } else {
-                        self.current_task = None;
+                        let pos_before_move = self.get_pos();
+                        let pos_after_move = pos_before_move.clone()
+                            + match step_dir.opt {
+                                CircleStepDir::Right => Location::<i64>::new(1, 0, 0),
+                                CircleStepDir::Down => Location::<i64>::new(0, -1, 0),
+                                CircleStepDir::Left => Location::<i64>::new(-1, 0, 0),
+                                CircleStepDir::Up => Location::<i64>::new(0, 1, 0),
+                            };
+
+                        let delta_before_op: Location<f64> =
+                            (pos_before_move - abs_center.clone()).into();
+                        let delta_before_op_step_correct =
+                            delta_before_op.clone() * step_sizes.clone();
+                        let delta_radius_before_op =
+                            radius_sq - delta_before_op_step_correct.distance_sq();
+
+                        let delta_after_op: Location<f64> =
+                            (pos_after_move - abs_center.clone()).into();
+                        let delta_after_op_step_correct =
+                            delta_after_op.clone() * step_sizes.clone();
+                        let delta_radius_after_op =
+                            radius_sq - delta_after_op_step_correct.distance_sq();
+
+                        if delta_radius_before_op.abs() > delta_radius_after_op.abs() {
+                            match step_dir.opt {
+                                CircleStepDir::Right => {
+                                    self.motor_x.step(Direction::Right).expect("Step failed X")
+                                }
+                                CircleStepDir::Down => {
+                                    self.motor_y.step(Direction::Left).expect("Step failed Y")
+                                }
+                                CircleStepDir::Left => {
+                                    self.motor_x.step(Direction::Left).expect("Step failed X")
+                                }
+                                CircleStepDir::Up => {
+                                    self.motor_y.step(Direction::Right).expect("Step failed Y")
+                                }
+                            };
+                        }
+                        let dist_destination = destination.clone() - self.get_pos();
+                        let dist_to_dest = dist_destination.clone().distance_sq();
+                        //println!("{} < {}", dist_destination, step_sizes.distance_sq() as i64);
+                        if dist_to_dest < 10 {
+                            curve_close_to_destination = true;
+                        }
+
+                        if curve_close_to_destination && dist_to_dest > last_distance_to_destination
+                        {
+                            self.current_task = Some((
+                                InnerTask::Production(InnerTaskProduction {
+                                    destination: dist_destination.clone(),
+                                    duration: Duration::from_secs_f64(0.1),
+                                    start_time: SystemTime::now(),
+                                    move_type: SteppedMoveType::Linear(SteppedLinearMovement {
+                                        delta: dist_destination.clone(),
+                                        distance: dist_to_dest as f64,
+                                    }),
+                                }),
+                                self.get_pos(),
+                                SystemTime::now(),
+                            ));
+                            curve_close_to_destination = false;
+                            last_distance_to_destination = 100;
+                        } else {
+                            last_distance_to_destination = dist_to_dest
+                        }
+
+                        if dist_destination.distance_sq() == 0 {
+                            curve_close_to_destination = false;
+                            last_distance_to_destination = 100;
+                            self.current_task = None;
+                        }
                     }
-                }
-                Some((
-                    InnerTask::Calibrate(InnerTaskCalibrate { z, .. }),
-                    start_pos,
-                    start,
-                )) => {
+                },
+                Some((InnerTask::Calibrate(InnerTaskCalibrate { z, .. }), start_pos, start)) => {
                     let runtime = start.elapsed().unwrap().as_micros() as u64;
                     let move_in_task = (self.get_pos() - start_pos.clone()).abs();
                     let z_steps = move_in_task.z;
@@ -277,7 +442,9 @@ impl MotorControllerThread {
                                 if let Err(_) = self.motor_z.step(Direction::Right) {
                                     self.current_task = None;
                                 }
-                                if self.z_calibrate.is_closed() {
+                                if self.z_calibrate.is_none()
+                                    || self.z_calibrate.as_mut().unwrap().is_closed()
+                                {
                                     self.current_task = None;
                                 }
                             }
@@ -326,7 +493,12 @@ pub struct MotorController {
 }
 
 impl MotorController {
-    pub fn new(motor_x: Motor, motor_y: Motor, motor_z: Motor, z_calibrate: Switch) -> Self {
+    pub fn new(
+        motor_x: Motor,
+        motor_y: Motor,
+        motor_z: Motor,
+        z_calibrate: Option<Switch>,
+    ) -> Self {
         let cancel_task = Arc::new(AtomicBool::new(false));
         let state = Arc::new(AtomicU32::new(0));
 
@@ -378,7 +550,10 @@ impl MotorController {
         self.task_query.lock().unwrap().push(Task::Program(task));
     }
     pub fn calibrate(&mut self, x: CalibrateType, y: CalibrateType, z: CalibrateType) -> () {
-        self.task_query.lock().unwrap().push(Task::Calibrate(x, y, z));
+        self.task_query
+            .lock()
+            .unwrap()
+            .push(Task::Calibrate(x, y, z));
     }
     pub fn get_state(&self) -> MachineState {
         self.state.load(Relaxed).into()
@@ -454,14 +629,14 @@ impl Motor {
         match (*self.inner.lock().unwrap().driver).do_step(&direction) {
             Ok(Direction::Left) => {
                 if max_level() == LevelFilter::Debug {
-                    print!("+");
+                    print!("-");
                 }
                 (*self.pos).fetch_sub(1, Relaxed);
                 Ok(())
             }
             Ok(Direction::Right) => {
                 if max_level() == LevelFilter::Debug {
-                    print!("-");
+                    print!("+");
                 }
                 (*self.pos).fetch_add(1, Relaxed);
                 Ok(())
@@ -480,12 +655,14 @@ impl Motor {
 #[derive(Debug)]
 pub struct MockMotor {
     current_direction: Direction,
+    step_size: f64,
 }
 
 impl MockMotor {
-    pub fn new() -> Self {
+    pub fn new(step_size: f64) -> Self {
         MockMotor {
             current_direction: Direction::Left,
+            step_size: step_size,
         }
     }
 }
@@ -499,7 +676,7 @@ impl Driver for MockMotor {
         Ok(direction.clone())
     }
     fn get_step_size(&self) -> f64 {
-        0.01
+        self.step_size
     }
 }
 

@@ -1,8 +1,9 @@
 #![allow(dead_code)]
-use std::convert::Into;
+use std::convert::{From, Into};
 use std::{
+    cmp::PartialOrd,
     fmt::{self, Debug, Display},
-    ops::{Add, Div, Mul, Sub},
+    ops::{Add, Div, Mul, Neg, Sub},
 };
 
 #[derive(PartialEq, Clone)]
@@ -67,7 +68,16 @@ pub struct Location<T: Debug + PartialEq> {
 
 impl Location<f64> {
     pub fn distance(&self) -> f64 {
-        (self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
+        self.distance_sq().sqrt()
+    }
+    pub fn distance_sq(&self) -> f64 {
+        self.x * self.x + self.y * self.y + self.z * self.z
+    }
+    pub fn max(&self) -> f64 {
+        self.x.max(self.y).max(self.z)
+    }
+    pub fn min(&self) -> f64 {
+        self.x.min(self.y).min(self.z)
     }
 }
 
@@ -78,6 +88,9 @@ impl Location<i64> {
             y: self.y.abs() as u64,
             z: self.z.abs() as u64,
         }
+    }
+    pub fn distance_sq(&self) -> i64 {
+        self.x * self.x + self.y * self.y + self.z * self.z
     }
 }
 impl Location<i32> {
@@ -97,6 +110,13 @@ impl Location<f64> {
             z: self.z.abs(),
         }
     }
+    pub fn floor(&self) -> Self {
+        Self {
+            x: self.x.floor(),
+            y: self.y.floor(),
+            z: self.z.floor(),
+        }
+    }
 }
 impl Location<f32> {
     pub fn abs(&self) -> Self {
@@ -104,6 +124,13 @@ impl Location<f32> {
             x: self.x.abs(),
             y: self.y.abs(),
             z: self.z.abs(),
+        }
+    }
+    pub fn floor(&self) -> Self {
+        Self {
+            x: self.x.floor(),
+            y: self.y.floor(),
+            z: self.z.floor(),
         }
     }
 }
@@ -125,8 +152,31 @@ impl<T> Location<T>
 where
     T: Debug + PartialEq + Default + Copy,
 {
+    pub fn new(x: T, y: T, z: T) -> Self {
+        Self { x: x, y: y, z: z }
+    }
     pub fn split(&self) -> (T, T, T) {
         (self.x, self.y, self.z)
+    }
+}
+
+impl<T> Location<T>
+where
+    T: Debug + PartialEq + Copy + Neg + From<<T as Neg>::Output>,
+{
+    pub fn rot_z_cw_90(&self) -> Self {
+        Self {
+            x: self.y,
+            y: (-self.x).into(),
+            z: self.z,
+        }
+    }
+    pub fn rot_z_ccw_90(&self) -> Self {
+        Self {
+            x: (-self.y).into(),
+            y: self.x,
+            z: self.z,
+        }
     }
 }
 
@@ -259,16 +309,300 @@ impl Into<Location<u128>> for Location<i64> {
         }
     }
 }
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum CircleDirection {
+    CW,
+    CCW,
+}
+
+#[derive(Debug)]
+pub struct LinearMovement {
+    /** delta move */
+    pub delta: Location<f64>,
+    /** delta distance */
+    pub distance: f64,
+}
+
+#[derive(Debug)]
+pub struct CircleMovement {
+    /** circle center */
+    pub center: Location<f64>,
+    /** initial radius in mm (²) */
+    pub radius_sq: f64,
+    /** cw or cww direction to mill the circle */
+    pub turn_direction: CircleDirection,
+}
+
 #[derive(Debug)]
 pub enum MoveType {
-    Linear,
-    Rapid,
+    Linear(LinearMovement),
+    Circle(CircleMovement),
+    Rapid(LinearMovement),
 }
 impl Display for MoveType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            MoveType::Linear => write!(f, "Move linear"),
-            MoveType::Rapid => write!(f, "Move rapid"),
+            MoveType::Linear(_) => write!(f, "Move linear"),
+            MoveType::Circle(_) => write!(f, "Move circle"),
+            MoveType::Rapid(_) => write!(f, "Move rapid"),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct SteppedLinearMovement {
+    /** delta move */
+    pub delta: Location<i64>,
+    /** delta distance in mm (to calculate speed) */
+    pub distance: f64,
+}
+
+#[derive(Debug)]
+pub struct SteppedCircleMovement {
+    /** circle center */
+    pub center: Location<i64>,
+    /** initial set radius in steps (float to comp with output of step_sizes) */
+    pub radius_sq: f64,
+    /**
+     * correction value to calculate the radius when the sep sizes differ on the axes
+     * # Example:
+     * ```
+     * let distance: Location<i64> = pos() - center;
+     * let radius_sq = (distance.into() * step_sizes).distance_sq()
+     */
+    pub step_sizes: Location<f64>,
+    /** cw or cww direction to mill the circle */
+    pub turn_direction: CircleDirection,
+
+    /** max speed */
+    pub speed: f64,
+}
+#[derive(Debug)]
+pub enum SteppedMoveType {
+    Linear(SteppedLinearMovement),
+    Circle(SteppedCircleMovement),
+    Rapid(SteppedLinearMovement),
+}
+impl Display for SteppedMoveType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            SteppedMoveType::Linear(_) => write!(f, "Move linear"),
+            SteppedMoveType::Circle(_) => write!(f, "Move circle"),
+            SteppedMoveType::Rapid(_) => write!(f, "Move rapid"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CircleStepDir {
+    Left,
+    Right,
+    Up,
+    Down,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CircleStepCW {
+    main: CircleStepDir,
+    opt: CircleStepDir,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CircleStepCCW {
+    main: CircleStepDir,
+    opt: CircleStepDir,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CircleStep {
+    pub main: CircleStepDir,
+    pub opt: CircleStepDir,
+}
+
+impl<T> Into<CircleStepCCW> for Location<T>
+where
+    T: Debug
+        + PartialEq
+        + Copy
+        + Neg
+        + Default
+        + From<<T as Neg>::Output>
+        + PartialOrd
+        + Into<<T as Neg>::Output>,
+{
+    fn into(self) -> CircleStepCCW {
+        let turned = self.rot_z_ccw_90();
+
+        let nul = T::default();
+        // go right
+        let abs_x: T = if turned.x < nul {
+            (-turned.x).into()
+        } else {
+            turned.x
+        };
+        let abs_y: T = if turned.y < nul {
+            (-turned.y).into()
+        } else {
+            turned.y
+        };
+
+        // ccw
+        if turned.x >= nul {
+            if turned.y < nul && abs_x <= abs_y {
+                // go down / opt right
+                CircleStepCCW {
+                    main: CircleStepDir::Down,
+                    opt: CircleStepDir::Right,
+                }
+            } else if turned.y > nul && abs_x < abs_y {
+                // go up / opt right
+                CircleStepCCW {
+                    main: CircleStepDir::Up,
+                    opt: CircleStepDir::Right,
+                }
+            } else if turned.y <= nul {
+                // go right / opt down
+                CircleStepCCW {
+                    main: CircleStepDir::Right,
+                    opt: CircleStepDir::Down,
+                }
+            } else {
+                // go right / opt up
+                CircleStepCCW {
+                    main: CircleStepDir::Right,
+                    opt: CircleStepDir::Up,
+                }
+            }
+        } else {
+            // go left
+            if turned.y > nul && abs_x <= abs_y {
+                // go up / opt left
+                CircleStepCCW {
+                    main: CircleStepDir::Up,
+                    opt: CircleStepDir::Left,
+                }
+            } else if turned.y < nul && abs_x < abs_y {
+                // go down / opt left
+                CircleStepCCW {
+                    main: CircleStepDir::Down,
+                    opt: CircleStepDir::Left,
+                }
+            } else if turned.y >= nul {
+                // go left / opt up
+                CircleStepCCW {
+                    main: CircleStepDir::Left,
+                    opt: CircleStepDir::Up,
+                }
+            } else {
+                // go left / opt down
+                CircleStepCCW {
+                    main: CircleStepDir::Left,
+                    opt: CircleStepDir::Down,
+                }
+            }
+        }
+    }
+}
+
+impl<T> Into<CircleStepCW> for Location<T>
+where
+    T: Debug
+        + PartialEq
+        + Copy
+        + Neg
+        + Default
+        + From<<T as Neg>::Output>
+        + PartialOrd
+        + Into<<T as Neg>::Output>,
+{
+    fn into(self) -> CircleStepCW {
+        let turned = self.rot_z_cw_90();
+
+        let nul = T::default();
+        // go right
+        let abs_x: T = if turned.x < nul {
+            (-turned.x).into()
+        } else {
+            turned.x
+        };
+        let abs_y: T = if turned.y < nul {
+            (-turned.y).into()
+        } else {
+            turned.y
+        };
+
+        // cw
+        if turned.x >= nul {
+            // go right
+            if turned.y < nul && abs_x < abs_y {
+                // go down / opt right
+                CircleStepCW {
+                    main: CircleStepDir::Down,
+                    opt: CircleStepDir::Right,
+                }
+            } else if turned.y > nul && abs_x <= abs_y {
+                // go up / opt right
+                CircleStepCW {
+                    main: CircleStepDir::Up,
+                    opt: CircleStepDir::Right,
+                }
+            } else if turned.y < nul {
+                // go right / opt down
+                CircleStepCW {
+                    main: CircleStepDir::Right,
+                    opt: CircleStepDir::Down,
+                }
+            } else {
+                // go right / opt up
+                CircleStepCW {
+                    main: CircleStepDir::Right,
+                    opt: CircleStepDir::Up,
+                }
+            }
+        } else {
+            // go left
+            if turned.y > nul && abs_x < abs_y {
+                // go up / opt left
+                CircleStepCW {
+                    main: CircleStepDir::Up,
+                    opt: CircleStepDir::Left,
+                }
+            } else if turned.y < nul && abs_x <= abs_y {
+                // go down / opt left
+                CircleStepCW {
+                    main: CircleStepDir::Down,
+                    opt: CircleStepDir::Left,
+                }
+            } else if turned.y > nul {
+                // go left / opt up
+                CircleStepCW {
+                    main: CircleStepDir::Left,
+                    opt: CircleStepDir::Up,
+                }
+            } else {
+                // go left / opt down
+                CircleStepCW {
+                    main: CircleStepDir::Left,
+                    opt: CircleStepDir::Down,
+                }
+            }
+        }
+    }
+}
+
+impl Into<CircleStep> for CircleStepCW {
+    fn into(self) -> CircleStep {
+        CircleStep {
+            main: self.main,
+            opt: self.opt,
+        }
+    }
+}
+impl Into<CircleStep> for CircleStepCCW {
+    fn into(self) -> CircleStep {
+        CircleStep {
+            main: self.main,
+            opt: self.opt,
         }
     }
 }

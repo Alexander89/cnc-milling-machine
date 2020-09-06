@@ -17,10 +17,11 @@ pub struct Program {
     scaler: f64,
     coordinations: Coordinations,
     current_position: Location<f64>,
+    invert_z: bool,
 }
 
 impl Program {
-    pub fn new(path: &str, scaler: f64, start_pos: Location<f64>) -> std::io::Result<Program> {
+    pub fn new(path: &str, scaler: f64, start_pos: Location<f64>, invert_z: bool) -> std::io::Result<Program> {
         let mut file = File::open(path)?;
         let mut content = String::new();
         file.read_to_string(&mut content)?;
@@ -40,6 +41,7 @@ impl Program {
             scaler: scaler,
             coordinations: Coordinations::Absolute,
             current_position: start_pos,
+            invert_z: invert_z,
         })
     }
 }
@@ -170,7 +172,7 @@ impl Program {
                     return None;
                 }
                 let speed = code.value_for('F').map(|s| s as f64);
-                let center = Self::rel_pos(
+                let center = self.rel_pos(
                     code.value_for('I'),
                     code.value_for('J'),
                     code.value_for('K'),
@@ -245,43 +247,49 @@ impl Program {
     /// Calculate the move distance to the new coordinate corresponding to the relative or absolute mode
     fn move_delta(&self, x: Option<f32>, y: Option<f32>, z: Option<f32>) -> Location<f64> {
         match self.coordinations {
-            Coordinations::Relative => Self::rel_pos(x, y, z),
+            Coordinations::Relative => self.rel_pos(x, y, z),
             Coordinations::Absolute => Location {
-                x: get_or_default(x, self.current_position.x) - self.current_position.x,
-                y: get_or_default(y, self.current_position.y) - self.current_position.y,
-                z: get_or_default(z, self.current_position.z) - self.current_position.z,
+                x: self.get_or_default(x, self.current_position.x, false) - self.current_position.x,
+                y: self.get_or_default(y, self.current_position.y, false) - self.current_position.y,
+                z: self.get_or_default(z, self.current_position.z, self.invert_z) - self.current_position.z,
             },
         }
     }
 
-    fn rel_pos(x: Option<f32>, y: Option<f32>, z: Option<f32>) -> Location<f64> {
+    fn rel_pos(&self, x: Option<f32>, y: Option<f32>, z: Option<f32>) -> Location<f64> {
         Location {
-            x: get_or_default(x, 0.0),
-            y: get_or_default(y, 0.0),
-            z: get_or_default(z, 0.0),
+            x: self.get_or_default(x, 0.0, false),
+            y: self.get_or_default(y, 0.0, false),
+            z: self.get_or_default(z, 0.0, self.invert_z),
         }
     }
 
     /// Update the current Location for the next instruction coordinate corresponding to the relative or absolute mode
     fn update_location(&mut self, x: Option<f32>, y: Option<f32>, z: Option<f32>) -> Location<f64> {
         match self.coordinations {
-            Coordinations::Relative => self.current_position = Self::rel_pos(x, y, z),
+            Coordinations::Relative => self.current_position = self.rel_pos(x, y, z),
             Coordinations::Absolute => {
                 self.current_position = Location {
-                    x: get_or_default(x, self.current_position.x),
-                    y: get_or_default(y, self.current_position.y),
-                    z: get_or_default(z, self.current_position.z),
+                    x: self.get_or_default(x, self.current_position.x, false),
+                    y: self.get_or_default(y, self.current_position.y, false),
+                    z: self.get_or_default(z, self.current_position.z, self.invert_z),
                 }
             }
         };
         self.current_position.clone()
     }
-}
+    
+    fn get_or_default(&self, value: Option<f32>, default: f64, invert: bool) -> f64 {
+        let value = if let Some(v) = value {
+            v as f64
+        } else {
+            default
+        };
 
-fn get_or_default(value: Option<f32>, default: f64) -> f64 {
-    if let Some(v) = value {
-        v as f64
-    } else {
-        default
+        if invert {
+            -value
+        } else {
+            value
+        }
     }
 }

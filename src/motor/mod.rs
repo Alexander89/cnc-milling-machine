@@ -385,12 +385,15 @@ impl MotorControllerThread {
                         let dist_destination = destination.clone() - self.get_pos();
                         let dist_to_dest = dist_destination.clone().distance_sq();
                         //println!("{} < {}", dist_destination, step_sizes.distance_sq() as i64);
-                        if dist_to_dest < 10 {
+                        if dist_to_dest < 25*25 && curve_close_to_destination == false{
+                            println!("get closer {}", dist_to_dest);
                             curve_close_to_destination = true;
                         }
 
                         if curve_close_to_destination && dist_to_dest > last_distance_to_destination
                         {
+                            println!("move away again STOP {}", dist_to_dest);
+
                             self.current_task = Some((
                                 InnerTask::Production(InnerTaskProduction {
                                     destination: dist_destination.clone(),
@@ -406,8 +409,9 @@ impl MotorControllerThread {
                             ));
                             curve_close_to_destination = false;
                             last_distance_to_destination = 100;
-                        } else {
-                            last_distance_to_destination = dist_to_dest
+                        } else if curve_close_to_destination{
+                            println!("get closer {}", dist_to_dest);
+                            last_distance_to_destination = dist_to_dest;
                         }
 
                         if dist_destination.distance_sq() == 0 {

@@ -135,7 +135,7 @@ fn main() {
     'running: loop {
         thread::sleep(Duration::new(0, 5_000_000));
         display_counter += 1;
-        if display_counter >= 20 {
+        if display_counter >= 100 {
             let pos = cnc.get_pos();
             if last != pos {
                 println!("  {{ x: {}, y: {}, z: {} }},", pos.x, pos.y, pos.z);
@@ -165,7 +165,7 @@ fn main() {
                                 cnc.reset();
                             }
                             if let Some(sel_prog) = selected_program {
-                                if let Ok(load_prog) = Program::new(sel_prog, 1.0, cnc.get_pos()) {
+                                if let Ok(load_prog) = Program::new(sel_prog, 1.0, cnc.get_pos(), false) {
                                     prog = Some(load_prog);
                                     current_mode = Mode::Program;
                                 } else {

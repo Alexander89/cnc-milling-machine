@@ -44,7 +44,7 @@ fn main() {
 
     let mut gilrs = Gilrs::new()
         .map_err(|_| "gamepad not valid")
-        .expect("controler is missing");
+        .expect("controller is missing");
     let mut gamepad_found = false;
     for (_id, gamepad) in gilrs.gamepads() {
         println!("{} is {:?}", gamepad.name(), gamepad.power_info());
@@ -152,7 +152,7 @@ fn main() {
                 }
                 input_reduce = 0;
 
-                // map GamePad events to update the manual program or start a programm
+                // map GamePad events to update the manual program or start a program
                 while let Some(Event { event, .. }) = gilrs.next_event() {
                     match event {
                         EventType::ButtonReleased(Button::Select, _) => {
@@ -224,6 +224,9 @@ fn main() {
                                 }
                                 _ => (),
                             };
+                            for (i, p) in available_progs.iter().enumerate() {
+                                println!("{}: {}", i, p);
+                            }
                             println!(
                                 "select {} {}",
                                 program_select_cursor,

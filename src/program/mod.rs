@@ -47,7 +47,7 @@ impl Program {
 }
 
 #[derive(Debug)]
-/** parsed GCode instruction to move the roter head */
+/** parsed GCode instruction to move the rotor head */
 pub struct Next3dMovement {
     /** mm per sec */
     pub speed: Option<f64>,

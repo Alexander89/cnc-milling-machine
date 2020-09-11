@@ -385,7 +385,7 @@ impl MotorControllerThread {
                         let dist_destination = destination.clone() - self.get_pos();
                         let dist_to_dest = dist_destination.clone().distance_sq();
                         //println!("{} < {}", dist_destination, step_sizes.distance_sq() as i64);
-                        if dist_to_dest < 25*25 && curve_close_to_destination == false{
+                        if dist_to_dest < 25 * 25 && curve_close_to_destination == false {
                             println!("get closer {}", dist_to_dest);
                             curve_close_to_destination = true;
                         }
@@ -409,7 +409,7 @@ impl MotorControllerThread {
                             ));
                             curve_close_to_destination = false;
                             last_distance_to_destination = 100;
-                        } else if curve_close_to_destination{
+                        } else if curve_close_to_destination {
                             println!("get closer {}", dist_to_dest);
                             last_distance_to_destination = dist_to_dest;
                         }
@@ -486,7 +486,6 @@ impl MotorControllerThread {
 #[derive(Debug)]
 pub struct MotorController {
     thread: thread::JoinHandle<()>,
-    ref_location: Location<i64>,
     cancel_task: Arc<AtomicBool>,
     state: Arc<AtomicU32>,
     task_query: Arc<Mutex<Vec<Task>>>,
@@ -541,7 +540,6 @@ impl MotorController {
         MotorController {
             thread: thread,
             state: state,
-            ref_location: Location { x: 0, y: 0, z: 0 },
             cancel_task: cancel_task,
             step_sizes: step_sizes,
             x: x,
@@ -580,10 +578,13 @@ impl MotorController {
         Ok(())
     }
     pub fn reset(&mut self) -> () {
-        self.ref_location = self.motor_pos();
+        self.set_pos(Location::default())
     }
     pub fn set_pos(&mut self, pos: Location<f64>) -> () {
-        self.ref_location = self.motor_pos() + (pos / self.step_sizes.clone()).into();
+        let steps: Location<i64> = (pos / self.step_sizes.clone()).into();
+        self.x.store(steps.x, Relaxed);
+        self.y.store(steps.y, Relaxed);
+        self.z.store(steps.z, Relaxed);
     }
     pub fn motor_pos(&self) -> Location<i64> {
         Location {
@@ -593,8 +594,8 @@ impl MotorController {
         }
     }
     pub fn get_pos(&self) -> Location<f64> {
-        let relative: Location<f64> = (self.motor_pos() - self.ref_location.clone()).into();
-        relative * self.step_sizes.clone()
+        let pos: Location<f64> = self.motor_pos().into();
+        pos * self.step_sizes.clone()
     }
 }
 

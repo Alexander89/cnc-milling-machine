@@ -200,6 +200,19 @@ impl Program {
                 };
                 Some(NextInstruction::Movement(next_move))
             }
+            20 => {
+                panic!("inch not supported")
+                Some(NextInstruction::InternalInstruction(format!(
+                    "use inch unit {}",
+                    code.major_number()
+                )))
+            }
+            21 => {
+                Some(NextInstruction::InternalInstruction(format!(
+                    "use mm unit {}",
+                    code.major_number()
+                )))
+            }
             90 => {
                 self.coordinations = Coordinations::Absolute;
                 Some(NextInstruction::InternalInstruction(format!(

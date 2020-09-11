@@ -162,10 +162,12 @@ fn main() {
                         EventType::ButtonReleased(Button::Start, _)
                         | EventType::ButtonReleased(Button::Mode, _) => {
                             if !calibrated {
-                                cnc.reset();
+                                println!("Warning: start program without calibration")
                             }
                             if let Some(sel_prog) = selected_program {
-                                if let Ok(load_prog) = Program::new(sel_prog, 1.0, cnc.get_pos(), false) {
+                                if let Ok(load_prog) =
+                                    Program::new(sel_prog, 1.0, cnc.get_pos(), false)
+                                {
                                     prog = Some(load_prog);
                                     current_mode = Mode::Program;
                                 } else {
@@ -202,37 +204,26 @@ fn main() {
                                 control.z = 0.0;
                             }
                         }
-                        EventType::ButtonPressed(Button::North, _) => {
-                            println!("reset");
-                            cnc.reset();
-                        }
-                        EventType::ButtonPressed(Button::West, _) => {
-                            println!("calibrate");
-                            cnc.calibrate(
-                                CalibrateType::None,
-                                CalibrateType::None,
-                                CalibrateType::ContactPin,
-                            );
-                            current_mode = Mode::CalibrateZ;
-                        }
-                        EventType::ButtonPressed(Button::DPadUp, _) => {
-                            if program_select_cursor <= 0 {
-                                program_select_cursor = available_progs.len() - 1;
-                            } else {
-                                program_select_cursor -= 1;
-                            }
-                            println!(
-                                "select {} {}",
-                                program_select_cursor,
-                                available_progs.get(program_select_cursor).unwrap()
-                            );
-                        }
-                        EventType::ButtonPressed(Button::DPadDown, _) => {
-                            program_select_cursor += 1;
+                        // add cross to select a program
+                        EventType::ButtonPressed(dir @ Button::DPadDown, _)
+                        | EventType::ButtonPressed(dir @ Button::DPadUp, _) => {
+                            match dir {
+                                Button::DPadUp => {
+                                    if program_select_cursor <= 0 {
+                                        program_select_cursor = available_progs.len() - 1;
+                                    } else {
+                                        program_select_cursor -= 1;
+                                    }
+                                }
+                                Button::DPadDown => {
+                                    program_select_cursor += 1;
 
-                            if program_select_cursor >= available_progs.len() {
-                                program_select_cursor = 0;
-                            }
+                                    if program_select_cursor >= available_progs.len() {
+                                        program_select_cursor = 0;
+                                    }
+                                }
+                                _ => (),
+                            };
                             println!(
                                 "select {} {}",
                                 program_select_cursor,
@@ -243,13 +234,30 @@ fn main() {
                             selected_program = available_progs.get(program_select_cursor);
                             println!("select {:?}", selected_program);
                         }
-                        // add cross to select a program
+                        EventType::ButtonPressed(Button::North, _) => {
+                            let pos = cnc.get_pos();
+                            if pos.x == 0.0 && pos.y == 0.0 {
+                                println!("reset all (x, y, z)");
+                                cnc.reset();
+                            } else {
+                                println!("reset only plane move (x, y)\nReset again without moving to reset the z axis as well");
+                                cnc.set_pos(Location::new(0.0, 0.0, pos.z));
+                            }
+                        }
+                        EventType::ButtonPressed(Button::West, _) => {
+                            println!("calibrate");
+                            cnc.calibrate(
+                                CalibrateType::None,
+                                CalibrateType::None,
+                                CalibrateType::ContactPin,
+                            );
+                            current_mode = Mode::CalibrateZ;
+                        }
                         _ => {}
                     }
                 }
                 if last_control != control {
                     println!("set manual move");
-                    calibrated = false;
                     cnc.manual_move(control.x, control.y, control.z, 5.0);
                     last_control = control.clone();
                 }

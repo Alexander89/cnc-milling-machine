@@ -201,7 +201,7 @@ impl Program {
                 Some(NextInstruction::Movement(next_move))
             }
             20 => {
-                panic!("inch not supported")
+                panic!("inch not supported");
                 Some(NextInstruction::InternalInstruction(format!(
                     "use inch unit {}",
                     code.major_number()

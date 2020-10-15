@@ -18,10 +18,19 @@ pub struct Program {
     coordinations: Coordinations,
     current_position: Location<f64>,
     invert_z: bool,
+    current_speed: f64,
+    rapid_speed: f64,
 }
 
 impl Program {
-    pub fn new(path: &str, scaler: f64, start_pos: Location<f64>, invert_z: bool) -> std::io::Result<Program> {
+    pub fn new(
+        path: &str,
+        default_speed: f64,
+        rapid_speed: f64,
+        scaler: f64,
+        start_pos: Location<f64>,
+        invert_z: bool,
+    ) -> std::io::Result<Program> {
         let mut file = File::open(path)?;
         let mut content = String::new();
         file.read_to_string(&mut content)?;
@@ -42,6 +51,8 @@ impl Program {
             coordinations: Coordinations::Absolute,
             current_position: start_pos,
             invert_z: invert_z,
+            current_speed: default_speed,
+            rapid_speed: rapid_speed,
         })
     }
 }
@@ -50,7 +61,7 @@ impl Program {
 /** parsed GCode instruction to move the roter head */
 pub struct Next3dMovement {
     /** mm per sec */
-    pub speed: Option<f64>,
+    pub speed: f64,
     /** validation start os */
     pub from: Location<f64>,
     /** target pos */
@@ -121,7 +132,7 @@ impl Program {
                     return None;
                 }
                 let next_move = Next3dMovement {
-                    speed: None,
+                    speed: self.rapid_speed,
                     from: self.current_position.clone(),
                     to: self.update_location(
                         code.value_for('X'),
@@ -145,7 +156,7 @@ impl Program {
                 if distance == 0.0 {
                     return None;
                 }
-                let speed = code.value_for('F').map(|s| s as f64);
+                let speed = self.get_speed(code.value_for('F'));
 
                 let next_move = Next3dMovement {
                     speed: speed,
@@ -171,7 +182,7 @@ impl Program {
                 if delta.distance() == 0.0 {
                     return None;
                 }
-                let speed = code.value_for('F').map(|s| s as f64);
+                let speed = self.get_speed(code.value_for('F'));
                 let center = self.rel_pos(
                     code.value_for('I'),
                     code.value_for('J'),
@@ -251,7 +262,8 @@ impl Program {
             Coordinations::Absolute => Location {
                 x: self.get_or_default(x, self.current_position.x, false) - self.current_position.x,
                 y: self.get_or_default(y, self.current_position.y, false) - self.current_position.y,
-                z: self.get_or_default(z, self.current_position.z, self.invert_z) - self.current_position.z,
+                z: self.get_or_default(z, self.current_position.z, self.invert_z)
+                    - self.current_position.z,
             },
         }
     }
@@ -278,7 +290,6 @@ impl Program {
         };
         self.current_position.clone()
     }
-    
     fn get_or_default(&self, value: Option<f32>, default: f64, invert: bool) -> f64 {
         let value = if let Some(v) = value {
             v as f64
@@ -291,5 +302,11 @@ impl Program {
         } else {
             value
         }
+    }
+    fn get_speed(&mut self, value: Option<f32>) -> f64 {
+        if let Some(v) = value {
+            self.current_speed = v as f64;
+        };
+        self.current_speed
     }
 }

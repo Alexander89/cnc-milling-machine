@@ -99,7 +99,7 @@ impl InnerTask {
                     InnerTask::Production(InnerTaskProduction {
                         start_time: SystemTime::now(),
                         destination: delta_in_steps.clone() - current_pos,
-                        duration: Duration::from_secs_f64(distance / speed.unwrap_or(max_speed)),
+                        duration: Duration::from_secs_f64(distance / speed.min(max_speed)),
                         move_type: SteppedMoveType::Linear(SteppedLinearMovement {
                             delta: delta_in_steps,
                             distance: distance,
@@ -112,7 +112,7 @@ impl InnerTask {
                     InnerTask::Production(InnerTaskProduction {
                         start_time: SystemTime::now(),
                         destination: (delta_in_steps.clone() - current_pos.into()).into(),
-                        duration: Duration::from_secs_f64(distance / speed.unwrap_or(max_speed)),
+                        duration: Duration::from_secs_f64(distance / speed.min(max_speed)),
                         move_type: SteppedMoveType::Rapid(SteppedLinearMovement {
                             delta: delta_in_steps.into(),
                             distance: distance,
@@ -127,8 +127,7 @@ impl InnerTask {
                     println!("{}", to);
                     let destination = to / step_sizes.clone();
 
-                    let step_speed =
-                        speed.unwrap_or(2.0).min(max_speed).max(0.05) / step_sizes.max();
+                    let step_speed = speed.min(max_speed).max(0.05) / step_sizes.max();
                     let step_center = (center.clone() / step_sizes.clone()).into();
                     // println!(
                     //     "{}  * {} = {} into {}",
@@ -317,8 +316,7 @@ impl MotorControllerThread {
 
                         let abs_center: Location<i64> = start_pos.clone() + center.clone().into();
                         let rel_to_center = self.get_pos() - abs_center.clone();
-                        // let abs_center_f: Location<f64> = abs_center.clone().into();
-                        // println!("{}", abs_center_f / step_sizes.clone());
+
                         let step_dir: CircleStep = match turn_direction {
                             CircleDirection::CW => {
                                 let next_step: CircleStepCW = rel_to_center.into();
@@ -344,7 +342,13 @@ impl MotorControllerThread {
                             }
                         }
                         let pos_before_move = self.get_pos();
-                        let pos_after_move = pos_before_move.clone()
+                        let delta_before_op: Location<f64> =
+                            (pos_before_move.clone() - abs_center.clone()).into();
+                        let delta_before_op_step_correct =
+                            delta_before_op.clone() * step_sizes.clone();
+                        let delta_radius_before_op =
+                            radius_sq - delta_before_op_step_correct.distance_sq();
+                        let pos_after_move = pos_before_move
                             + match step_dir.opt {
                                 CircleStepDir::Right => Location::<i64>::new(1, 0, 0),
                                 CircleStepDir::Down => Location::<i64>::new(0, -1, 0),
@@ -352,20 +356,12 @@ impl MotorControllerThread {
                                 CircleStepDir::Up => Location::<i64>::new(0, 1, 0),
                             };
 
-                        let delta_before_op: Location<f64> =
-                            (pos_before_move - abs_center.clone()).into();
-                        let delta_before_op_step_correct =
-                            delta_before_op.clone() * step_sizes.clone();
-                        let delta_radius_before_op =
-                            radius_sq - delta_before_op_step_correct.distance_sq();
-
                         let delta_after_op: Location<f64> =
                             (pos_after_move - abs_center.clone()).into();
                         let delta_after_op_step_correct =
                             delta_after_op.clone() * step_sizes.clone();
                         let delta_radius_after_op =
                             radius_sq - delta_after_op_step_correct.distance_sq();
-
                         if delta_radius_before_op.abs() > delta_radius_after_op.abs() {
                             match step_dir.opt {
                                 CircleStepDir::Right => {
@@ -382,9 +378,9 @@ impl MotorControllerThread {
                                 }
                             };
                         }
+
                         let dist_destination = destination.clone() - self.get_pos();
                         let dist_to_dest = dist_destination.clone().distance_sq();
-                        //println!("{} < {}", dist_destination, step_sizes.distance_sq() as i64);
                         if dist_to_dest < 25 * 25 && curve_close_to_destination == false {
                             println!("get closer {}", dist_to_dest);
                             curve_close_to_destination = true;

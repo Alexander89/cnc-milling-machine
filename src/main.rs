@@ -44,7 +44,7 @@ fn main() {
 
     let mut gilrs = Gilrs::new()
         .map_err(|_| "gamepad not valid")
-        .expect("controler is missing");
+        .expect("controller is missing");
     let mut gamepad_found = false;
     for (_id, gamepad) in gilrs.gamepads() {
         println!("{} is {:?}", gamepad.name(), gamepad.power_info());
@@ -59,9 +59,9 @@ fn main() {
     let (z_calibrate, motor_x, motor_y, motor_z) = if settings.dev_mode {
         (
             None,
-            Motor::new("x".to_string(), speed, Box::new(MockMotor::new(0.0040f64))),
-            Motor::new("y".to_string(), speed, Box::new(MockMotor::new(0.0042f64))),
-            Motor::new("z".to_string(), speed, Box::new(MockMotor::new(0.0042f64))),
+            Motor::new("x".to_string(), speed, Box::new(MockMotor::new(0.004f64))),
+            Motor::new("y".to_string(), speed, Box::new(MockMotor::new(0.004f64))),
+            Motor::new("z".to_string(), speed, Box::new(MockMotor::new(0.004f64))),
         )
     } else {
         (
@@ -76,7 +76,7 @@ fn main() {
                     Some(21),
                     Some(20),
                     speed,
-                    0.0040f64,
+                    0.004f64,
                 )),
             ),
             Motor::new(
@@ -89,7 +89,7 @@ fn main() {
                     Some(19),
                     Some(26),
                     speed,
-                    0.0042f64,
+                    0.004f64,
                 )),
             ),
             Motor::new(
@@ -102,7 +102,7 @@ fn main() {
                     Some(5),
                     Some(6),
                     speed,
-                    0.0042f64,
+                    0.004f64,
                 )),
             ),
         )
@@ -152,7 +152,7 @@ fn main() {
                 }
                 input_reduce = 0;
 
-                // map GamePad events to update the manual program or start a programm
+                // map GamePad events to update the manual program or start a program
                 while let Some(Event { event, .. }) = gilrs.next_event() {
                     match event {
                         EventType::ButtonReleased(Button::Select, _) => {
@@ -178,28 +178,28 @@ fn main() {
                             }
                         }
                         EventType::AxisChanged(Axis::LeftStickX, value, _) => {
-                            if value > 0.1 {
-                                control.x = (value as f64 - 0.1) / 9.0 * -10.0;
-                            } else if value < -0.1 {
-                                control.x = (value as f64 + 0.1) / 9.0 * -10.0;
+                            if value > 0.15 {
+                                control.x = (value as f64 - 0.15) / 8.5 * -10.0;
+                            } else if value < -0.15 {
+                                control.x = (value as f64 + 0.15) / 8.5 * -10.0;
                             } else {
                                 control.x = 0.0;
                             }
                         }
                         EventType::AxisChanged(Axis::LeftStickY, value, _) => {
-                            if value > 0.1 {
-                                control.y = (value as f64 - 0.1) / 9.0 * 10.0;
-                            } else if value < -0.1 {
-                                control.y = (value as f64 + 0.1) / 9.0 * 10.0;
+                            if value > 0.15 {
+                                control.y = (value as f64 - 0.15) / 8.5 * 10.0;
+                            } else if value < -0.15 {
+                                control.y = (value as f64 + 0.15) / 8.5 * 10.0;
                             } else {
                                 control.y = 0.0;
                             }
                         }
                         EventType::AxisChanged(Axis::RightStickY, value, _) => {
-                            if value > 0.1 {
-                                control.z = (value as f64 - 0.1) / 9.0 * 10.0;
-                            } else if value < -0.1 {
-                                control.z = (value as f64 + 0.1) / 9.0 * 10.0;
+                            if value > 0.15 {
+                                control.z = (value as f64 - 0.15) / 8.5 * 10.0;
+                            } else if value < -0.15 {
+                                control.z = (value as f64 + 0.15) / 8.5 * 10.0;
                             } else {
                                 control.z = 0.0;
                             }
@@ -224,6 +224,9 @@ fn main() {
                                 }
                                 _ => (),
                             };
+                            for (i, p) in available_progs.iter().enumerate() {
+                                println!("{}: {}", i, p);
+                            }
                             println!(
                                 "select {} {}",
                                 program_select_cursor,

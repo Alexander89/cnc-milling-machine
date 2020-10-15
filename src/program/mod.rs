@@ -58,7 +58,7 @@ impl Program {
 }
 
 #[derive(Debug)]
-/** parsed GCode instruction to move the roter head */
+/** parsed GCode instruction to move the rotor head */
 pub struct Next3dMovement {
     /** mm per sec */
     pub speed: f64,
@@ -210,6 +210,19 @@ impl Program {
                     }),
                 };
                 Some(NextInstruction::Movement(next_move))
+            }
+            20 => {
+                panic!("inch not supported");
+                Some(NextInstruction::InternalInstruction(format!(
+                    "use inch unit {}",
+                    code.major_number()
+                )))
+            }
+            21 => {
+                Some(NextInstruction::InternalInstruction(format!(
+                    "use mm unit {}",
+                    code.major_number()
+                )))
             }
             90 => {
                 self.coordinations = Coordinations::Absolute;

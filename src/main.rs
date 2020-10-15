@@ -166,7 +166,7 @@ fn main() {
                             }
                             if let Some(sel_prog) = selected_program {
                                 if let Ok(load_prog) =
-                                    Program::new(sel_prog, 5.0, 10.0, 1.0, cnc.get_pos(), false)
+                                    Program::new(sel_prog, 3.0, 10.0, 1.0, cnc.get_pos(), false)
                                 {
                                     prog = Some(load_prog);
                                     current_mode = Mode::Program;

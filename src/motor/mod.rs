@@ -609,6 +609,8 @@ pub struct Motor {
     pos: Arc<AtomicI64>,
     inner: Arc<Mutex<MotorInner>>,
     step_size: f64, // mm per step
+    last_step: SystemTime,
+    speed: u64,
 }
 
 impl Motor {
@@ -621,9 +623,34 @@ impl Motor {
                 max_step_speed: max_step_speed, // steps per second
                 driver: driver,
             })),
+            last_step: SystemTime::now(),
+            speed: 0,
         }
     }
     pub fn step(&mut self, direction: Direction) -> Result<()> {
+        // block motor to have a smooth ramp
+        // this wil slow slow down the complete program, because all motors run in one thread
+        // the slowest motor do also slow down the rest
+
+        // first step after a brake could be done immediately
+        if self.last_step.elapsed().unwrap() > Duration::from_millis(1) {
+            self.speed = 0;
+        } else {
+            self.speed += (1000 - self.speed) / 64;
+            // println!(
+            //     "{} {}",
+            //     self.speed,
+            //     self.last_step.elapsed().unwrap().as_nanos()
+            // );
+            let req_delay = Duration::from_micros(1000 - self.speed + 200);
+            let delta_t = self.last_step.elapsed().unwrap();
+            if delta_t < req_delay {
+                let open_delay = req_delay.as_nanos() - delta_t.as_nanos();
+                thread::sleep(Duration::new(0, open_delay as u32));
+            };
+        }
+        self.last_step = SystemTime::now();
+
         match (*self.inner.lock().unwrap().driver).do_step(&direction) {
             Ok(Direction::Left) => {
                 if max_level() == LevelFilter::Debug {

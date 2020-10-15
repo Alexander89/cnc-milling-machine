@@ -124,18 +124,10 @@ impl InnerTask {
                     turn_direction,
                     radius_sq,
                 }) => {
-                    println!("{}", to);
                     let destination = to / step_sizes.clone();
 
                     let step_speed = speed.min(max_speed).max(0.05) / step_sizes.max();
                     let step_center = (center.clone() / step_sizes.clone()).into();
-                    // println!(
-                    //     "{}  * {} = {} into {}",
-                    //     center,
-                    //     step_sizes,
-                    //     center.clone() * step_sizes.clone(),
-                    //     step_center
-                    // );
 
                     InnerTask::Production(InnerTaskProduction {
                         start_time: SystemTime::now(),
@@ -382,14 +374,11 @@ impl MotorControllerThread {
                         let dist_destination = destination.clone() - self.get_pos();
                         let dist_to_dest = dist_destination.clone().distance_sq();
                         if dist_to_dest < 25 * 25 && curve_close_to_destination == false {
-                            println!("get closer {}", dist_to_dest);
                             curve_close_to_destination = true;
                         }
 
                         if curve_close_to_destination && dist_to_dest > last_distance_to_destination
                         {
-                            println!("move away again STOP {}", dist_to_dest);
-
                             self.current_task = Some((
                                 InnerTask::Production(InnerTaskProduction {
                                     destination: dist_destination.clone(),
@@ -406,7 +395,6 @@ impl MotorControllerThread {
                             curve_close_to_destination = false;
                             last_distance_to_destination = 100;
                         } else if curve_close_to_destination {
-                            println!("get closer {}", dist_to_dest);
                             last_distance_to_destination = dist_to_dest;
                         }
 
@@ -457,11 +445,20 @@ impl MotorControllerThread {
                         let next = lock.remove(0);
                         self.state.store(next.machine_state().into(), Relaxed);
                         self.current_task = Some((
-                            InnerTask::from_task(next, self.get_pos(), self.get_step_sizes(), 10.0),
+                            InnerTask::from_task(
+                                next,
+                                self.get_pos(),
+                                self.get_step_sizes(),
+                                100.0f64,
+                            ),
                             self.get_pos(),
                             SystemTime::now(),
                         ));
-                        println!("start task {:?}", self.current_task.as_ref().unwrap().0);
+                        println!(
+                            "next task (todo: {}) {:?}",
+                            lock.len(),
+                            self.current_task.as_ref().unwrap().0
+                        );
                     }
                     Ok(lock) => {
                         if self.state.load(Relaxed) != MachineState::Idle.into() {

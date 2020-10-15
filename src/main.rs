@@ -135,7 +135,7 @@ fn main() {
     'running: loop {
         thread::sleep(Duration::new(0, 5_000_000));
         display_counter += 1;
-        if display_counter >= 100 {
+        if display_counter >= 1000 {
             let pos = cnc.get_pos();
             if last != pos {
                 println!("  {{ x: {}, y: {}, z: {} }},", pos.x, pos.y, pos.z);

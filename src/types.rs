@@ -315,7 +315,7 @@ pub enum CircleDirection {
     CCW,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LinearMovement {
     /** delta move */
     pub delta: Location<f64>,
@@ -323,7 +323,7 @@ pub struct LinearMovement {
     pub distance: f64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CircleMovement {
     /** circle center */
     pub center: Location<f64>,
@@ -333,7 +333,7 @@ pub struct CircleMovement {
     pub turn_direction: CircleDirection,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum MoveType {
     Linear(LinearMovement),
     Circle(CircleMovement),

@@ -57,7 +57,7 @@ impl Program {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /** parsed GCode instruction to move the rotor head */
 pub struct Next3dMovement {
     /** mm per sec */

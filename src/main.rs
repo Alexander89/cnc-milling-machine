@@ -271,7 +271,10 @@ fn main() {
                     }
                 }
                 if last_control != control {
-                    println!("set manual move");
+                    println!(
+                        "set manual move {}, {}, {}",
+                        control.x, control.y, control.z
+                    );
                     cnc.manual_move(control.x, control.y, control.z, 5.0);
                     last_control = control.clone();
                 }

@@ -6,7 +6,7 @@ use crate::types::{
     Direction, LinearMovement, Location, MachineState, MoveType, SteppedCircleMovement,
     SteppedLinearMovement, SteppedMoveType,
 };
-use log::{debug, max_level, LevelFilter};
+use log::{max_level, LevelFilter};
 use rppal::gpio::{Gpio, OutputPin};
 use std::{
     fmt::Debug,
@@ -14,6 +14,7 @@ use std::{
     sync::Mutex,
     sync::{
         atomic::{AtomicBool, AtomicI64, AtomicU32, Ordering::Relaxed},
+        mpsc::{channel, Receiver, Sender},
         Arc,
     },
     thread,
@@ -69,29 +70,28 @@ impl InnerTask {
     ) -> InnerTask {
         match t {
             Task::Manual(task) => {
-                let x = task.move_x_speed * -1000000.0f64;
-                let y = task.move_y_speed * -1000000.0f64;
-                let z = task.move_z_speed * -1000000.0f64;
-                let delta = (Location::new(1.0f64, 1.0f64, 1.0f64) * 10000.0f64).into();
+                let input = Location::new(task.move_x_speed, task.move_y_speed, task.move_z_speed);
+                let speed = input.clone().distance() * max_speed;
 
-                let move_speed_vec =
-                    Location::new(task.move_x_speed, task.move_y_speed, task.move_z_speed)
-                        .distance()
-                        * max_speed;
+                let move_vec: Location<f64> = input.clone() * 10000.0f64;
+                let delta: Location<i64> = (move_vec.clone() / step_sizes).into(); // [steps] (10m more than the table into i64 steps)
 
-                let pos_f64: Location<f64> = current_pos.clone().into();
-                let destination = pos_f64 + Location::new(x, y, z);
-                let distance_vec = destination.clone() / step_sizes;
-                let distance = distance_vec.distance();
+                let destination = current_pos.clone() + delta.clone();
+                let distance = move_vec.distance();
+
+                println!(
+                    "create task: input {} speed {}/{} move_vec {} move_delta {}",
+                    input, speed, max_speed, move_vec, delta
+                );
 
                 InnerTask::Production(InnerTaskProduction {
                     start_time: SystemTime::now(),
                     from: current_pos,
-                    destination: destination.into(),
+                    destination,
                     move_type: SteppedMoveType::Linear(SteppedLinearMovement {
                         delta,
                         distance,
-                        speed: move_speed_vec.min(max_speed),
+                        speed,
                     }),
                 })
             }
@@ -211,6 +211,7 @@ struct MotorControllerThread {
     cancel_task: Arc<AtomicBool>,
     state: Arc<AtomicU32>,
     task_query: Arc<Mutex<Vec<Task>>>,
+    manual_task_receiver: Receiver<ManualTask>,
 }
 
 impl MotorControllerThread {
@@ -233,12 +234,22 @@ impl MotorControllerThread {
         let mut curve_close_to_destination = false;
         let mut last_distance_to_destination = 100;
         let mut q_ptr = 0;
-        let step_size = self.get_step_sizes();
         loop {
+            if let Ok(next_task) = self.manual_task_receiver.try_recv() {
+                let task = Task::Manual(next_task);
+                self.state.store(task.machine_state().into(), Relaxed);
+                self.current_task = Some(InnerTask::from_task(
+                    task,
+                    self.get_pos(),
+                    self.get_step_sizes(),
+                    10.0f64,
+                ));
+            };
             if self.cancel_task.load(Relaxed) {
-                self.current_task = None;
                 self.cancel_task.store(false, Relaxed);
-            }
+                self.current_task = None;
+                println!("cancle task");
+            };
             match &self.current_task {
                 Some(InnerTask::Production(InnerTaskProduction {
                     start_time,
@@ -260,21 +271,28 @@ impl MotorControllerThread {
                         ..
                     }) => {
                         if let Ok(elapsed) = start_time.elapsed() {
-                            let duration = Duration::from_secs_f64(distance / speed);
+                            // println!(
+                            //     "loop: speed {} distance {} delta {}",
+                            //     speed, distance, delta
+                            // );
+                            if *speed == 0.0f64 || *distance == 0.0f64 {
+                                self.current_task = None;
+                                println!("stop for speed 0 distance 0");
+                                continue;
+                            }
+                            let duration = Duration::from_secs_f64(*distance / *speed);
                             let runtime = elapsed.as_micros() as u64;
                             let job_runtime = duration.as_micros() as u64;
 
                             let move_in_task = (self.get_pos() - from.clone()).abs();
 
                             let (x, y, z) = delta.split();
-                            debug!(
-                                "loop: start {} move_in_task {} delta {}",
-                                from, move_in_task, delta
-                            );
+
                             if (delta.abs() - move_in_task.clone() == Location::default())
                                 || (x == 0 && y == 0 && z == 0)
                             {
                                 self.current_task = None;
+                                println!("stop for arrived {} {} {}", x, y, z,);
                             } else {
                                 if x != 0
                                     && x.abs() as u64 != move_in_task.x
@@ -314,6 +332,7 @@ impl MotorControllerThread {
                             }
                         } else {
                             self.current_task = None;
+                            println!("failed at start_time.elapsed()");
                         }
                     }
                     SteppedMoveType::Circle(SteppedCircleMovement {
@@ -473,9 +492,12 @@ impl MotorControllerThread {
                         let next = lock[q_ptr].clone();
                         q_ptr += 1;
                         self.state.store(next.machine_state().into(), Relaxed);
-                        let pos = self.get_pos();
-                        self.current_task =
-                            Some(InnerTask::from_task(next, pos, step_size.clone(), 100.0f64));
+                        self.current_task = Some(InnerTask::from_task(
+                            next,
+                            self.get_pos(),
+                            self.get_step_sizes(),
+                            10.0f64,
+                        ));
                     }
                     Ok(ref mut lock) => {
                         lock.clear();
@@ -495,6 +517,12 @@ impl MotorControllerThread {
             }
         }
     }
+    fn max_speed(&self) -> f64 {
+        let x_speed: f64 = self.motor_x.speed as f64 * self.motor_x.step_size;
+        let y_speed: f64 = self.motor_y.speed as f64 * self.motor_y.step_size;
+        let z_speed: f64 = self.motor_z.speed as f64 * self.motor_z.step_size;
+        x_speed.min(y_speed).min(z_speed)
+    }
 }
 
 #[derive(Debug)]
@@ -503,6 +531,7 @@ pub struct MotorController {
     cancel_task: Arc<AtomicBool>,
     state: Arc<AtomicU32>,
     task_query: Arc<Mutex<Vec<Task>>>,
+    manual_task_sender: Sender<ManualTask>,
     step_sizes: Location<f64>,
     x: Arc<AtomicI64>,
     y: Arc<AtomicI64>,
@@ -526,6 +555,7 @@ impl MotorController {
             z: motor_z.get_step_size(),
         };
 
+        let (manual_task_sender, receive_manual_task) = channel::<ManualTask>();
         let x = motor_x.get_pos_ref();
         let y = motor_y.get_pos_ref();
         let z = motor_z.get_pos_ref();
@@ -546,6 +576,7 @@ impl MotorController {
                 state: state_inner,
                 cancel_task: cancel_task_inner,
                 task_query: task_query_inner,
+                manual_task_receiver: receive_manual_task,
             };
 
             inner.run();
@@ -560,6 +591,7 @@ impl MotorController {
             y,
             z,
             task_query,
+            manual_task_sender,
         }
     }
     pub fn query_task(&mut self, task: Next3dMovement) {
@@ -575,20 +607,21 @@ impl MotorController {
         self.state.load(Relaxed).into()
     }
     pub fn manual_move(&mut self, x: f64, y: f64, z: f64, speed: f64) {
-        self.task_query.lock().unwrap().clear();
-        self.cancel_task().expect("ok");
-        self.task_query
-            .lock()
-            .unwrap()
-            .push(Task::Manual(ManualTask {
-                move_x_speed: x,
-                move_y_speed: y,
-                move_z_speed: z,
-                speed,
-            }));
+        if self.manual_task_sender.send(ManualTask {
+            move_x_speed: x,
+            move_y_speed: y,
+            move_z_speed: z,
+            speed,
+        }).is_err() {
+            println!("cand set manual move");
+        }
     }
     pub fn cancel_task(&mut self) -> Result<()> {
+        self.task_query.lock().unwrap().clear();
         self.cancel_task.store(true, Relaxed);
+        while self.cancel_task.load(Relaxed) {
+            thread::sleep(Duration::from_nanos(100));
+        }
         Ok(())
     }
     pub fn reset(&mut self) {
@@ -654,10 +687,10 @@ impl Motor {
         // the slowest motor do also slow down the rest
 
         // first step after a brake could be done immediately
-        if self.last_step.elapsed().unwrap() > Duration::from_millis(20) {
+        if self.last_step.elapsed().unwrap() > Duration::from_millis(50) {
             self.speed = 1000;
         } else {
-            self.speed += (5000 - self.speed) / (self.speed / 100);
+            self.speed += (5000 - self.speed) / (self.speed / 200);
             // println!(
             //     "{} {}",
             //     self.speed,

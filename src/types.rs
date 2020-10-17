@@ -92,6 +92,9 @@ impl Location<i64> {
     pub fn distance_sq(&self) -> i64 {
         self.x * self.x + self.y * self.y + self.z * self.z
     }
+    pub fn identity() -> Self {
+        Self { x: 1, y: 1, z: 1 }
+    }
 }
 impl Location<i32> {
     pub fn abs(&self) -> Location<u32> {
@@ -100,6 +103,9 @@ impl Location<i32> {
             y: self.y.abs() as u32,
             z: self.z.abs() as u32,
         }
+    }
+    pub fn identity() -> Self {
+        Self { x: 1, y: 1, z: 1 }
     }
 }
 impl Location<f64> {
@@ -117,6 +123,13 @@ impl Location<f64> {
             z: self.z.floor(),
         }
     }
+    pub fn identity() -> Self {
+        Self {
+            x: 1.0f64,
+            y: 1.0f64,
+            z: 1.0f64,
+        }
+    }
 }
 impl Location<f32> {
     pub fn abs(&self) -> Self {
@@ -131,6 +144,13 @@ impl Location<f32> {
             x: self.x.floor(),
             y: self.y.floor(),
             z: self.z.floor(),
+        }
+    }
+    pub fn identity() -> Self {
+        Self {
+            x: 1.0f32,
+            y: 1.0f32,
+            z: 1.0f32,
         }
     }
 }

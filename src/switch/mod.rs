@@ -20,9 +20,9 @@ impl Switch {
         let gpio = Gpio::new().unwrap().get(pin).unwrap().into_input();
         let state = gpio.read();
         Switch {
-            pin: pin,
-            invert_input: invert_input,
-            gpio: gpio,
+            pin,
+            invert_input,
+            gpio,
             level: state,
         }
     }

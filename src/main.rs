@@ -30,7 +30,7 @@ impl From<env::Args> for Settings {
     fn from(args: env::Args) -> Settings {
         let mut s = Settings::default();
         for arg in args {
-            if arg == String::from("dev_mode") {
+            if arg == *"dev_mode" {
                 s.dev_mode = true;
             }
         }
@@ -121,7 +121,7 @@ fn main() {
     }
 
     let mut selected_program = available_progs.get(0);
-    let mut program_select_cursor = 0;
+    let mut program_select_cursor: i32 = 0;
     let mut current_mode: Mode = Mode::Manual;
     let mut input_reduce: u8 = 0;
     let mut prog: Option<program::Program> = None;
@@ -210,7 +210,7 @@ fn main() {
                             match dir {
                                 Button::DPadUp => {
                                     if program_select_cursor <= 0 {
-                                        program_select_cursor = available_progs.len() - 1;
+                                        program_select_cursor = available_progs.len() as i32 - 1;
                                     } else {
                                         program_select_cursor -= 1;
                                     }
@@ -218,7 +218,7 @@ fn main() {
                                 Button::DPadDown => {
                                     program_select_cursor += 1;
 
-                                    if program_select_cursor >= available_progs.len() {
+                                    if program_select_cursor >= available_progs.len() as i32 {
                                         program_select_cursor = 0;
                                     }
                                 }
@@ -230,11 +230,22 @@ fn main() {
                             println!(
                                 "select {} {}",
                                 program_select_cursor,
-                                available_progs.get(program_select_cursor).unwrap()
+                                available_progs
+                                    .get(
+                                        program_select_cursor
+                                            .min(available_progs.len() as i32)
+                                            .max(0)
+                                            as usize
+                                    )
+                                    .unwrap()
                             );
                         }
                         EventType::ButtonPressed(Button::South, _) => {
-                            selected_program = available_progs.get(program_select_cursor);
+                            selected_program = available_progs.get(
+                                program_select_cursor
+                                    .min(available_progs.len() as i32)
+                                    .max(0) as usize,
+                            );
                             println!("select {:?}", selected_program);
                         }
                         EventType::ButtonPressed(Button::North, _) => {

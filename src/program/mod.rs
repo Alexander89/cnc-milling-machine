@@ -44,15 +44,15 @@ impl Program {
         }
 
         Ok(Program {
-            content: content,
-            codes: codes,
+            content,
+            codes,
             current_step: 0,
-            scaler: scaler,
+            scaler,
             coordinations: Coordinations::Absolute,
             current_position: start_pos,
-            invert_z: invert_z,
+            invert_z,
             current_speed: default_speed,
-            rapid_speed: rapid_speed,
+            rapid_speed,
         })
     }
 }
@@ -93,9 +93,7 @@ impl Iterator for Program {
     fn next(&mut self) -> Option<Self::Item> {
         let step = self.codes.get(self.current_step);
         self.current_step += 1;
-        if step.is_none() {
-            return None;
-        }
+        step?; // only continue if step
         let code = step.unwrap().to_owned();
 
         let res = match code.mnemonic() {
@@ -133,10 +131,7 @@ impl Program {
                         code.value_for('Y'),
                         code.value_for('Z'),
                     ),
-                    move_type: MoveType::Rapid(LinearMovement {
-                        delta: delta,
-                        distance: distance,
-                    }),
+                    move_type: MoveType::Rapid(LinearMovement { delta, distance }),
                 };
                 Some(NextInstruction::Movement(next_move))
             }
@@ -153,17 +148,14 @@ impl Program {
                 let speed = self.get_speed(code.value_for('F'));
 
                 let next_move = Next3dMovement {
-                    speed: speed,
+                    speed,
                     from: self.current_position.clone(),
                     to: self.update_location(
                         code.value_for('X'),
                         code.value_for('Y'),
                         code.value_for('Z'),
                     ),
-                    move_type: MoveType::Linear(LinearMovement {
-                        delta: delta,
-                        distance: distance,
-                    }),
+                    move_type: MoveType::Linear(LinearMovement { delta, distance }),
                 };
                 Some(NextInstruction::Movement(next_move))
             }
@@ -190,7 +182,7 @@ impl Program {
                 };
 
                 let next_move = Next3dMovement {
-                    speed: speed,
+                    speed,
                     from: self.current_position.clone(),
                     to: self.update_location(
                         code.value_for('X'),
@@ -200,7 +192,7 @@ impl Program {
                     move_type: MoveType::Circle(CircleMovement {
                         center: center.clone(),
                         radius_sq: center.distance_sq(),
-                        turn_direction: turn_direction,
+                        turn_direction,
                     }),
                 };
                 Some(NextInstruction::Movement(next_move))

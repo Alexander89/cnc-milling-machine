@@ -15,7 +15,7 @@ pub enum MachineState {
     Unknown,
 }
 impl Into<u32> for MachineState {
-    fn into(self: Self) -> u32 {
+    fn into(self) -> u32 {
         match self {
             MachineState::Idle => 0,
             MachineState::ManualTask => 1,
@@ -26,7 +26,7 @@ impl Into<u32> for MachineState {
     }
 }
 impl Into<MachineState> for u32 {
-    fn into(self: Self) -> MachineState {
+    fn into(self) -> MachineState {
         match self {
             0 => MachineState::Idle,
             1 => MachineState::ManualTask,
@@ -153,7 +153,7 @@ where
     T: Debug + PartialEq + Default + Copy,
 {
     pub fn new(x: T, y: T, z: T) -> Self {
-        Self { x: x, y: y, z: z }
+        Self { x, y, z }
     }
     pub fn split(&self) -> (T, T, T) {
         (self.x, self.y, self.z)
@@ -282,7 +282,7 @@ where
     }
 }
 impl Into<Location<f64>> for Location<i64> {
-    fn into(self: Self) -> Location<f64> {
+    fn into(self) -> Location<f64> {
         Location {
             x: self.x as f64,
             y: self.y as f64,
@@ -291,7 +291,7 @@ impl Into<Location<f64>> for Location<i64> {
     }
 }
 impl Into<Location<i64>> for Location<f64> {
-    fn into(self: Self) -> Location<i64> {
+    fn into(self) -> Location<i64> {
         Location {
             x: self.x.round() as i64,
             y: self.y.round() as i64,
@@ -300,7 +300,7 @@ impl Into<Location<i64>> for Location<f64> {
     }
 }
 impl Into<Location<u128>> for Location<i64> {
-    fn into(self: Self) -> Location<u128> {
+    fn into(self) -> Location<u128> {
         let abs = self.abs();
         Location {
             x: abs.x as u128,
@@ -355,6 +355,8 @@ pub struct SteppedLinearMovement {
     pub delta: Location<i64>,
     /** delta distance in mm (to calculate speed) */
     pub distance: f64,
+    /** speed in mm/sec */
+    pub speed: f64,
 }
 
 #[derive(Debug)]

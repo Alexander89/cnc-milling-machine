@@ -71,18 +71,13 @@ impl InnerTask {
         match t {
             Task::Manual(task) => {
                 let input = Location::new(task.move_x_speed, task.move_y_speed, task.move_z_speed);
-                let speed = input.clone().distance() * max_speed;
+                let speed = input.clone().distance() * task.speed;
 
                 let move_vec: Location<f64> = input.clone() * 10000.0f64;
                 let delta: Location<i64> = (move_vec.clone() / step_sizes).into(); // [steps] (10m more than the table into i64 steps)
 
                 let destination = current_pos.clone() + delta.clone();
                 let distance = move_vec.distance();
-
-                println!(
-                    "create task: input {} speed {}/{} move_vec {} move_delta {}",
-                    input, speed, max_speed, move_vec, delta
-                );
 
                 InnerTask::Production(InnerTaskProduction {
                     start_time: SystemTime::now(),
@@ -136,7 +131,7 @@ impl InnerTask {
                 }) => {
                     let destination = to / step_sizes.clone();
 
-                    let step_speed = speed.min(max_speed).max(0.05) / step_sizes.max();
+                    let step_delay = step_sizes.max() / speed.min(max_speed).max(0.05);
                     let step_center = (center / step_sizes.clone()).into();
 
                     InnerTask::Production(InnerTaskProduction {
@@ -148,7 +143,8 @@ impl InnerTask {
                             radius_sq,
                             step_sizes,
                             turn_direction,
-                            speed: step_speed,
+                            speed,
+                            step_delay,
                         }),
                     })
                 }
@@ -236,13 +232,14 @@ impl MotorControllerThread {
         let mut q_ptr = 0;
         loop {
             if let Ok(next_task) = self.manual_task_receiver.try_recv() {
+                let max_speed = next_task.speed;
                 let task = Task::Manual(next_task);
                 self.state.store(task.machine_state().into(), Relaxed);
                 self.current_task = Some(InnerTask::from_task(
                     task,
                     self.get_pos(),
                     self.get_step_sizes(),
-                    10.0f64,
+                    max_speed,
                 ));
             };
             if self.cancel_task.load(Relaxed) {
@@ -292,7 +289,6 @@ impl MotorControllerThread {
                                 || (x == 0 && y == 0 && z == 0)
                             {
                                 self.current_task = None;
-                                println!("stop for arrived {} {} {}", x, y, z,);
                             } else {
                                 if x != 0
                                     && x.abs() as u64 != move_in_task.x
@@ -341,10 +337,12 @@ impl MotorControllerThread {
                         radius_sq,
                         step_sizes,
                         speed,
+                        step_delay,
                         ..
                     }) => {
                         if last_step.is_some()
-                            && last_step.unwrap().elapsed().unwrap().as_secs_f64() <= 1.0 / *speed
+                            && last_step.unwrap().elapsed().unwrap().as_secs_f64()
+                                <= *step_delay
                         {
                             continue;
                         }
@@ -415,7 +413,7 @@ impl MotorControllerThread {
                             };
                         }
 
-                        let dist_destination = destination.clone() - self.get_pos();
+                        let dist_destination: Location<i64> = destination.clone() - self.get_pos();
                         let dist_to_dest = dist_destination.clone().distance_sq();
                         if dist_to_dest < 25 * 25 && !curve_close_to_destination {
                             curve_close_to_destination = true;
@@ -423,13 +421,16 @@ impl MotorControllerThread {
 
                         if curve_close_to_destination && dist_to_dest > last_distance_to_destination
                         {
+                            let dist_destination_f64: Location<f64> = dist_destination.clone().into();
+                            let distance = (dist_destination_f64 * step_sizes.clone()).distance();
+                            
                             self.current_task = Some(InnerTask::Production(InnerTaskProduction {
-                                destination: dist_destination.clone(),
+                                destination: destination.clone(),
                                 from: self.get_pos(),
                                 start_time: SystemTime::now(),
                                 move_type: SteppedMoveType::Linear(SteppedLinearMovement {
                                     delta: dist_destination.clone(),
-                                    distance: dist_to_dest as f64,
+                                    distance,
                                     speed: *speed,
                                 }),
                             }));
@@ -496,7 +497,7 @@ impl MotorControllerThread {
                             next,
                             self.get_pos(),
                             self.get_step_sizes(),
-                            10.0f64,
+                            40.0f64,
                         ));
                     }
                     Ok(ref mut lock) => {
@@ -508,10 +509,10 @@ impl MotorControllerThread {
                         }
                         #[allow(clippy::drop_ref)]
                         drop(lock);
-                        thread::sleep(Duration::new(0, 1_000));
+                        thread::sleep(Duration::new(0, 10_000));
                     }
                     _ => {
-                        thread::sleep(Duration::new(0, 1_000));
+                        thread::sleep(Duration::new(0, 10_000));
                     }
                 },
             }
@@ -607,13 +608,17 @@ impl MotorController {
         self.state.load(Relaxed).into()
     }
     pub fn manual_move(&mut self, x: f64, y: f64, z: f64, speed: f64) {
-        if self.manual_task_sender.send(ManualTask {
-            move_x_speed: x,
-            move_y_speed: y,
-            move_z_speed: z,
-            speed,
-        }).is_err() {
-            println!("cand set manual move");
+        if self
+            .manual_task_sender
+            .send(ManualTask {
+                move_x_speed: x,
+                move_y_speed: y,
+                move_z_speed: z,
+                speed,
+            })
+            .is_err()
+        {
+            println!("cant set manual move");
         }
     }
     pub fn cancel_task(&mut self) -> Result<()> {
@@ -664,6 +669,7 @@ pub struct Motor {
     inner: Arc<Mutex<MotorInner>>,
     step_size: f64, // mm per step
     last_step: SystemTime,
+    pref_delta_t: f64,
     speed: u64,
 }
 
@@ -678,6 +684,7 @@ impl Motor {
                 driver,
             })),
             last_step: SystemTime::now(),
+            pref_delta_t: 1.0,
             speed: 1000,
         }
     }
@@ -690,19 +697,20 @@ impl Motor {
         if self.last_step.elapsed().unwrap() > Duration::from_millis(50) {
             self.speed = 1000;
         } else {
-            self.speed += (5000 - self.speed) / (self.speed / 200);
+            self.speed += (6000 - self.speed) / (self.speed / 50);
             // println!(
             //     "{} {}",
             //     self.speed,
             //     self.last_step.elapsed().unwrap().as_nanos()
             // );
-            let req_delay = Duration::from_micros(5000 - self.speed);
+            let req_delay = Duration::from_micros(5000 - self.speed.min(5000));
             let delta_t = self.last_step.elapsed().unwrap();
             if delta_t < req_delay {
                 let open_delay = req_delay.as_nanos() - delta_t.as_nanos();
                 thread::sleep(Duration::new(0, open_delay as u32));
             };
         }
+        self.pref_delta_t = self.last_step.elapsed().unwrap().as_secs_f64();
         self.last_step = SystemTime::now();
 
         match (*self.inner.lock().unwrap().driver).do_step(&direction) {

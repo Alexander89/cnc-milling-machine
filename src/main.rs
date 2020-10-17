@@ -54,7 +54,7 @@ fn main() {
         panic!("no gamepad connected");
     }
 
-    let speed = 1_000; // 2mm per Round / 1.8° per step (0.02 Um per step) => 0.01 mm per step
+    let speed = 200;
 
     let (z_calibrate, motor_x, motor_y, motor_z) = if settings.dev_mode {
         (
@@ -166,7 +166,7 @@ fn main() {
                             }
                             if let Some(sel_prog) = selected_program {
                                 if let Ok(load_prog) =
-                                    Program::new(sel_prog, 3.0, 10.0, 1.0, cnc.get_pos(), false)
+                                    Program::new(sel_prog, 5.0, 50.0, 1.0, cnc.get_pos(), false)
                                 {
                                     prog = Some(load_prog);
                                     current_mode = Mode::Program;
@@ -271,11 +271,7 @@ fn main() {
                     }
                 }
                 if last_control != control {
-                    println!(
-                        "set manual move {}, {}, {}",
-                        control.x, control.y, control.z
-                    );
-                    cnc.manual_move(control.x, control.y, control.z, 5.0);
+                    cnc.manual_move(control.x, control.y, control.z, 20.0);
                     last_control = control.clone();
                 }
             }
@@ -283,7 +279,9 @@ fn main() {
                 while let Some(Event { event, .. }) = gilrs.next_event() {
                     if let EventType::ButtonReleased(Button::Select, _) = event {
                         current_mode = Mode::Manual;
-                        cnc.manual_move(0.0, 0.0, 0.0, 1.0);
+                        if cnc.cancel_task().is_err() {
+                            panic!("cancle did not work!");
+                        };
                     }
                 }
                 if let Some(p) = prog.as_mut() {
@@ -324,7 +322,9 @@ fn main() {
                 while let Some(Event { event, .. }) = gilrs.next_event() {
                     if let EventType::ButtonReleased(Button::Select, _) = event {
                         current_mode = Mode::Manual;
-                        cnc.manual_move(0.0, 0.0, 0.0, 1.0);
+                        if cnc.cancel_task().is_err() {
+                            panic!("cancle did not work!");
+                        };
                     }
                 }
                 match (cnc.get_state(), in_opp) {

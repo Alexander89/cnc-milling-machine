@@ -398,6 +398,8 @@ pub struct SteppedCircleMovement {
 
     /** max speed */
     pub speed: f64,
+    /** seconds betwean steps */
+    pub step_delay: f64,
 }
 #[derive(Debug)]
 pub enum SteppedMoveType {

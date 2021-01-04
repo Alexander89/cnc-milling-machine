@@ -1,3 +1,5 @@
 /target
 **/*.rs.bk
-/src/ui
+.cache
+dist
+node_modules

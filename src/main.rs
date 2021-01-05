@@ -2,20 +2,20 @@ mod motor;
 mod program;
 mod switch;
 mod types;
+mod ui;
 
 use crate::motor::{CalibrateType, MockMotor, Motor, MotorController, StepMotor};
 use crate::program::{NextInstruction, Program};
 use crate::switch::Switch;
 use crate::types::{Location, MachineState};
+use crate::ui::{
+    types::{Mode, WsCommands, WsMessages, WsPositionMessage, WsStatusMessage},
+    ui_main,
+};
+use crossbeam_channel::unbounded;
+use futures::executor::ThreadPool;
 use gilrs::{Axis, Button, Event, EventType, Gilrs};
 use std::{env, fs, thread, time::Duration};
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum Mode {
-    Manual,
-    Program,
-    CalibrateZ,
-}
 
 struct Settings {
     dev_mode: bool,
@@ -28,18 +28,18 @@ impl Default for Settings {
 }
 impl From<env::Args> for Settings {
     fn from(args: env::Args) -> Settings {
-        let mut s = Settings::default();
+        let mut settings = Settings::default();
         for arg in args {
             if arg == *"dev_mode" {
-                s.dev_mode = true;
+                settings.dev_mode = true;
             }
         }
-
-        s
+        settings
     }
 }
 
 fn main() {
+    let pool = ThreadPool::new().expect("Failed to build pool");
     let settings = Settings::from(env::args());
 
     let mut gilrs = Gilrs::new()
@@ -132,12 +132,38 @@ fn main() {
     let mut display_counter = 0;
     let mut calibrated = false;
 
+    let (data_sender, data_receiver) = unbounded::<WsMessages>();
+    let (cmd_sender, _cmd_receiver) = unbounded::<WsCommands>();
+    let pos_msg = WsPositionMessage::new(0.0f64, 0.0f64, 0.0f64);
+    let status_msg = WsStatusMessage::new(
+        current_mode.clone(),
+        settings.dev_mode.clone(),
+        speed,
+        in_opp.clone(),
+        if let Some(p) = selected_program {
+            Some(p.clone())
+        } else {
+            None
+        },
+        calibrated.clone(),
+    );
+    pool.spawn_ok(async {
+        ui_main(cmd_sender, data_receiver, pos_msg, status_msg).expect("could not start WS-server");
+    });
+
     'running: loop {
         thread::sleep(Duration::new(0, 5_000_000));
         display_counter += 1;
-        if display_counter >= 1000 {
+        if display_counter >= 50 {
             let pos = cnc.get_pos();
             if last != pos {
+                data_sender
+                    .send(WsMessages::Position(WsPositionMessage {
+                        x: pos.x,
+                        y: pos.y,
+                        z: pos.z,
+                    }))
+                    .unwrap();
                 println!("  {{ x: {}, y: {}, z: {} }},", pos.x, pos.y, pos.z);
                 last = pos;
             }
@@ -170,6 +196,20 @@ fn main() {
                                 {
                                     prog = Some(load_prog);
                                     current_mode = Mode::Program;
+
+                                    data_sender.send(WsMessages::Status(WsStatusMessage::new(
+                                        current_mode.clone(),
+                                        settings.dev_mode.clone(),
+                                        speed,
+                                        in_opp.clone(),
+                                        if let Some(p) = selected_program {
+                                            Some(p.clone())
+                                        } else {
+                                            None
+                                        },
+                                        calibrated.clone(),
+                                    )))
+                                    .unwrap();
                                 } else {
                                     println!("program is not able to load")
                                 }
@@ -265,7 +305,7 @@ fn main() {
                                 CalibrateType::None,
                                 CalibrateType::ContactPin,
                             );
-                            current_mode = Mode::CalibrateZ;
+                            current_mode = Mode::Calibrate;
                         }
                         _ => {}
                     }
@@ -318,7 +358,7 @@ fn main() {
                     }
                 }
             }
-            Mode::CalibrateZ => {
+            Mode::Calibrate => {
                 while let Some(Event { event, .. }) = gilrs.next_event() {
                     if let EventType::ButtonReleased(Button::Select, _) = event {
                         current_mode = Mode::Manual;

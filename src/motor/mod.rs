@@ -341,8 +341,7 @@ impl MotorControllerThread {
                         ..
                     }) => {
                         if last_step.is_some()
-                            && last_step.unwrap().elapsed().unwrap().as_secs_f64()
-                                <= *step_delay
+                            && last_step.unwrap().elapsed().unwrap().as_secs_f64() <= *step_delay
                         {
                             continue;
                         }
@@ -421,9 +420,10 @@ impl MotorControllerThread {
 
                         if curve_close_to_destination && dist_to_dest > last_distance_to_destination
                         {
-                            let dist_destination_f64: Location<f64> = dist_destination.clone().into();
+                            let dist_destination_f64: Location<f64> =
+                                dist_destination.clone().into();
                             let distance = (dist_destination_f64 * step_sizes.clone()).distance();
-                            
+
                             self.current_task = Some(InnerTask::Production(InnerTaskProduction {
                                 destination: destination.clone(),
                                 from: self.get_pos(),
@@ -503,9 +503,10 @@ impl MotorControllerThread {
                     Ok(ref mut lock) => {
                         lock.clear();
                         q_ptr = 0;
+                        let idle: u32 = MachineState::Idle.into();
 
-                        if self.state.load(Relaxed) != MachineState::Idle.into() {
-                            self.state.store(MachineState::Idle.into(), Relaxed);
+                        if self.state.load(Relaxed) != idle {
+                            self.state.store(idle, Relaxed);
                         }
                         #[allow(clippy::drop_ref)]
                         drop(lock);

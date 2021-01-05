@@ -1,41 +1,47 @@
-use actix::{Actor, StreamHandler};
-use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer};
+pub mod system;
+pub mod types;
+pub mod ws_connection;
+
+use actix::Addr;
+use actix_cors::Cors;
+use actix_web::{get, web::Data, web::Payload, App, Error, HttpRequest, HttpResponse, HttpServer};
 use actix_web_actors::ws;
+use crossbeam_channel::{Receiver, Sender};
+use system::System;
+use types::{WsCommands, WsMessages, WsPositionMessage, WsStatusMessage};
+use ws_connection::WsConnection;
 
-/// Define HTTP actor
-struct MyWs;
+type WsReceiver = Receiver<WsMessages>;
+type WsSender = Sender<WsCommands>;
 
-impl Actor for MyWs {
-    type Context = ws::WebsocketContext<Self>;
-}
+#[get("/ws")]
+pub async fn web_socket(
+    req: HttpRequest,
+    stream: Payload,
+    srv: Data<Addr<System>>,
+) -> Result<HttpResponse, Error> {
+    let ws = WsConnection::new(srv.get_ref().clone());
 
-/// Handler for ws::Message message
-impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWs {
-    fn handle(
-        &mut self,
-        msg: Result<ws::Message, ws::ProtocolError>,
-        ctx: &mut Self::Context,
-    ) {
-        match msg {
-            Ok(ws::Message::Ping(msg)) => ctx.pong(&msg),
-            Ok(ws::Message::Text(text)) => ctx.text(text),
-            Ok(ws::Message::Binary(bin)) => ctx.binary(bin),
-            _ => (),
-        }
-    }
-}
-
-async fn index(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
-    let resp = ws::start(MyWs {}, &req, stream);
-    println!("{:?}", resp);
-    resp
+    let resp = ws::start(ws, &req, stream)?;
+    Ok(resp)
 }
 
 #[actix_web::main]
-async fn uiMain() -> std::io::Result<()> {
-    HttpServer::new(|| App::new()
-        .route("/ws/", web::get().to(index)))
-        .bind("127.0.0.1:1506")?
-        .run()
-        .await
+pub async fn ui_main(
+    sender: WsSender,
+    receiver: WsReceiver,
+    position: WsPositionMessage,
+    status: WsStatusMessage,
+) -> std::io::Result<()> {
+    let system = System::new(sender, receiver, position, status);
+
+    HttpServer::new(move || {
+        App::new()
+            .wrap(Cors::permissive())
+            .data(system.clone())
+            .service(web_socket)
+    })
+    .bind("127.0.0.1:1506")?
+    .run()
+    .await
 }

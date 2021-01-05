@@ -1,26 +1,41 @@
-import { Observable, of } from "rxjs"
+import { Observable, of, Subject } from "rxjs"
+import { isPositionMessage, isStatusMessage, PositionMessage, StatusMessage } from "./types"
 
-export type Monitoring = {
-
+export type MonitoringService = {
+  position$: Observable<PositionMessage>
+  status$: Observable<StatusMessage>
 }
-
-export type Position = {
-  x: number
-  y: number
-  z: number
-}
-
-type MonitoringService = {
-  position$: Observable<Position>
-}
-const monitoringServiceLive: MonitoringService = {
-  position$: of({x: 10, y: 15, z: 20})
+const monitoringServiceLive = (ws: WebSocket): MonitoringService => {
+  const posSub = new Subject<PositionMessage>()
+  const statusSub = new Subject<StatusMessage>()
+  ws.addEventListener('message', ({data}) => {
+    const msg = JSON.parse(data)
+    if (isPositionMessage(msg)) {
+      posSub.next(msg)
+    }
+    else if (isStatusMessage(msg)) {
+      statusSub.next(msg)
+    }
+  })
+  return {
+    position$: posSub.asObservable(),
+    status$: statusSub.asObservable(),
+  }
 }
 const monitoringServiceMock: MonitoringService = {
-  position$: of({x: 10, y: 15, z: 20})
+  position$: of({type: 'position', x: 10, y: 15, z: 20}),
+  status$: of({
+    type: 'status',
+    calibrated: false,
+    devMode: false,
+    inOpp: false,
+    mode: 'manual',
+    speed: 200,
+    currentProg: undefined,
+  })
 }
 
-export const MonitoringService = {
+export const monitoringService = {
   live: monitoringServiceLive,
   mock: monitoringServiceMock,
 }

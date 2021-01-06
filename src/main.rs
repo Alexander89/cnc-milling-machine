@@ -1,153 +1,257 @@
 mod motor;
 mod program;
+mod settings;
 mod switch;
 mod types;
 mod ui;
 
 use crate::motor::{CalibrateType, MockMotor, Motor, MotorController, StepMotor};
 use crate::program::{NextInstruction, Program};
+use crate::settings::Settings;
 use crate::switch::Switch;
 use crate::types::{Location, MachineState};
 use crate::ui::{
     types::{Mode, WsCommands, WsMessages, WsPositionMessage, WsStatusMessage},
     ui_main,
 };
+
 use crossbeam_channel::unbounded;
 use futures::executor::ThreadPool;
 use gilrs::{Axis, Button, Event, EventType, Gilrs};
-use std::{env, fs, thread, time::Duration};
+use notify::{Watcher, raw_watcher, RawEvent, RecursiveMode};
+use std::{fs, thread, time::Duration};
+use std::sync::mpsc;
 
-struct Settings {
-    dev_mode: bool,
+struct App {
+    pub available_progs: Vec<String>,
+    pub pool: ThreadPool,
+    pub settings: Settings,
+    pub gilrs: Gilrs,
+    pub in_opp: bool,
+    pub cnc: MotorController,
+    pub current_mode: Mode,
+    pub prog: Option<program::Program>,
+    pub calibrated: bool,
+    pub selected_program: Option<String>,
 }
 
-impl Default for Settings {
-    fn default() -> Self {
-        Self { dev_mode: false }
-    }
-}
-impl From<env::Args> for Settings {
-    fn from(args: env::Args) -> Settings {
-        let mut settings = Settings::default();
-        for arg in args {
-            if arg == *"dev_mode" {
-                settings.dev_mode = true;
-            }
+impl App {
+    fn init() -> App {
+        let pool = ThreadPool::new().expect("Failed to build pool");
+        let settings = Settings::from_file("./settings.yaml");
+
+        let gilrs = Gilrs::new()
+            .map_err(|_| "gamepad not valid")
+            .expect("controller is missing");
+
+        if !App::gamepad_connected(&gilrs) {
+            panic!("no gamepad connected");
         }
-        settings
+
+        let (z_calibrate, motor_x, motor_y, motor_z) = if settings.dev_mode {
+            (
+                None,
+                Motor::new(
+                    "x".to_string(),
+                    settings.motor_x.max_step_speed,
+                    Box::new(MockMotor::new(settings.motor_x.step_size)),
+                ),
+                Motor::new(
+                    "y".to_string(),
+                    settings.motor_y.max_step_speed,
+                    Box::new(MockMotor::new(settings.motor_y.step_size)),
+                ),
+                Motor::new(
+                    "z".to_string(),
+                    settings.motor_z.max_step_speed,
+                    Box::new(MockMotor::new(settings.motor_z.step_size)),
+                ),
+            )
+        } else {
+            (
+                if let Some(pin) = settings.calibrate_z_gpio {
+                    Some(Switch::new(pin, false))
+                } else {
+                    None
+                },
+                Motor::new(
+                    "x".to_string(),
+                    settings.motor_x.max_step_speed,
+                    Box::new(StepMotor::new(
+                        settings.motor_x.pull_gpio,      //18,
+                        settings.motor_x.dir_gpio,       //27,
+                        settings.motor_x.ena_gpio,       //None,
+                        settings.motor_x.end_left_gpio,  //Some(21),
+                        settings.motor_x.end_right_gpio, //Some(20),
+                        settings.motor_x.max_step_speed, //speed,
+                        settings.motor_x.step_size,      //0.004f64,
+                    )),
+                ),
+                Motor::new(
+                    "y".to_string(),
+                    settings.motor_y.max_step_speed,
+                    Box::new(StepMotor::new(
+                        settings.motor_y.pull_gpio,      // 22,
+                        settings.motor_y.dir_gpio,       // 23,
+                        settings.motor_y.ena_gpio,       // None,
+                        settings.motor_y.end_left_gpio,  // Some(19),
+                        settings.motor_y.end_right_gpio, // Some(26),
+                        settings.motor_y.max_step_speed, // speed,
+                        settings.motor_y.step_size,      // 0.004f64,
+                    )),
+                ),
+                Motor::new(
+                    "z".to_string(),
+                    settings.motor_z.max_step_speed,
+                    Box::new(StepMotor::new(
+                        settings.motor_z.pull_gpio,      //25,
+                        settings.motor_z.dir_gpio,       //24,
+                        settings.motor_z.ena_gpio,       //None,
+                        settings.motor_z.end_left_gpio,  //Some(5),
+                        settings.motor_z.end_right_gpio, //Some(6),
+                        settings.motor_z.max_step_speed, //speed,
+                        settings.motor_z.step_size,      //0.004f64,
+                    )),
+                ),
+            )
+        };
+
+        let cnc = MotorController::new(motor_x, motor_y, motor_z, z_calibrate);
+
+        App {
+            available_progs: App::read_available_progs(&settings.input_dir),
+            pool,
+            settings,
+            gilrs,
+            in_opp: false,
+            cnc,
+            current_mode: Mode::Manual,
+            prog: None,
+            calibrated: false,
+            selected_program: None,
+        }
+    }
+    fn gamepad_connected(gilrs: &Gilrs) -> bool {
+        let mut gamepad_found = false;
+        for (_id, gamepad) in gilrs.gamepads() {
+            println!("{} is {:?}", gamepad.name(), gamepad.power_info());
+            gamepad_found = true;
+        }
+        gamepad_found
+    }
+    fn read_available_progs(input_dir: &Vec<String>) -> Vec<String> {
+        input_dir
+            .iter()
+            .flat_map(|path| {
+                fs::read_dir(path)
+                    .unwrap()
+                    .map(|res| res.expect("ok").path().to_str().unwrap().to_owned())
+                    .filter(|name| name.ends_with(".gcode") || name.ends_with(".ngc") || name.ends_with(".nc"))
+            })
+            .collect::<Vec<String>>()
+    }
+    pub fn update_available_progs(input_dir: &Vec<String>, available_progs: &Vec<String>) -> (bool, Vec<String>) {
+        let new_content = App::read_available_progs(input_dir);
+
+        if new_content.len() != available_progs.len() {
+            (true, new_content)
+        } else {
+            // check if both arrays contain the same content
+            let match_count = new_content
+                .iter()
+                .zip(available_progs.clone())
+                .filter(|(a, b)| *a == b)
+                .count();
+            (match_count != available_progs.len(), new_content)
+        }
+    }
+
+    fn start_file_watcher(&mut self) -> (mpsc::Sender<Vec<String>>, mpsc::Receiver<Vec<String>>) {
+        let (send_path_changed, receiver_path_changed) = mpsc::channel::<Vec<String>>();
+        let (send_new_progs, receiver_new_progs) = mpsc::channel::<Vec<String>>();
+        let mut path_vec = self.settings.input_dir.clone();
+        thread::spawn(move || {
+            let (tx_fs_changed, rx_fs_changed) = mpsc::channel();
+            let mut watcher = raw_watcher(tx_fs_changed.clone()).unwrap();
+            let mut publish_update = false;
+            let mut known_progs = vec![];
+            loop {
+                for path in path_vec.iter() {
+                    watcher.watch(path, RecursiveMode::NonRecursive).unwrap();
+                }
+
+                'watch: loop {
+                    if let Ok(p) = receiver_path_changed.try_recv() {
+                        path_vec = p;
+                        break 'watch;
+                    };
+                    match rx_fs_changed.try_recv() {
+                        Ok(RawEvent{path: Some(path), op: Ok(notify::op::CLOSE_WRITE), ..}) |
+                        Ok(RawEvent{path: Some(path), op: Ok(notify::op::REMOVE), ..}) => {
+                            println!("{:?}", path);
+                            publish_update = true;
+                        },
+                        _ => {
+                            thread::sleep(Duration::new(1, 0));
+                            if publish_update {
+                                let (changed, ap) = App::update_available_progs(&path_vec, &known_progs);
+                                if changed {
+                                    known_progs = ap.clone();
+                                    send_new_progs.send(ap);
+                                }
+                                publish_update = false;
+                            }
+                        },
+                     }
+                };
+                for path in path_vec.iter() {
+                    watcher.unwatch(path).unwrap();
+                }
+            };
+        });
+        (send_path_changed, receiver_new_progs)
+    }
+
+    fn run(&mut self) {
+        let (update_path, new_progs) = self.start_file_watcher();
+        thread::spawn(move || {
+            loop {
+                if let Ok(p) = new_progs.recv() {
+                    println!("new progs {:?}", p);
+                }
+            }
+        });
     }
 }
 
 fn main() {
-    let pool = ThreadPool::new().expect("Failed to build pool");
-    let settings = Settings::from(env::args());
+    let mut app: App = App::init();
+    app.run();
 
-    let mut gilrs = Gilrs::new()
-        .map_err(|_| "gamepad not valid")
-        .expect("controller is missing");
-    let mut gamepad_found = false;
-    for (_id, gamepad) in gilrs.gamepads() {
-        println!("{} is {:?}", gamepad.name(), gamepad.power_info());
-        gamepad_found = true;
-    }
-    if !gamepad_found {
-        panic!("no gamepad connected");
-    }
-
-    let speed = 200;
-
-    let (z_calibrate, motor_x, motor_y, motor_z) = if settings.dev_mode {
-        (
-            None,
-            Motor::new("x".to_string(), speed, Box::new(MockMotor::new(0.004f64))),
-            Motor::new("y".to_string(), speed, Box::new(MockMotor::new(0.004f64))),
-            Motor::new("z".to_string(), speed, Box::new(MockMotor::new(0.004f64))),
-        )
-    } else {
-        (
-            Some(Switch::new(16, false)),
-            Motor::new(
-                "x".to_string(),
-                speed,
-                Box::new(StepMotor::new(
-                    18,
-                    27,
-                    None,
-                    Some(21),
-                    Some(20),
-                    speed,
-                    0.004f64,
-                )),
-            ),
-            Motor::new(
-                "y".to_string(),
-                speed,
-                Box::new(StepMotor::new(
-                    22,
-                    23,
-                    None,
-                    Some(19),
-                    Some(26),
-                    speed,
-                    0.004f64,
-                )),
-            ),
-            Motor::new(
-                "z".to_string(),
-                speed,
-                Box::new(StepMotor::new(
-                    25,
-                    24,
-                    None,
-                    Some(5),
-                    Some(6),
-                    speed,
-                    0.004f64,
-                )),
-            ),
-        )
-    };
-
-    let mut cnc = MotorController::new(motor_x, motor_y, motor_z, z_calibrate);
-    let mut in_opp = false;
-
-    let available_progs = fs::read_dir(".")
-        .unwrap()
-        .map(|res| res.expect("ok").path().to_str().unwrap().to_owned())
-        .filter(|name| name.ends_with(".gcode"))
-        .collect::<Vec<String>>();
-    for (i, p) in available_progs.iter().enumerate() {
+    for (i, p) in app.available_progs.iter().enumerate() {
         println!("{}: {}", i, p);
     }
 
-    let mut selected_program = available_progs.get(0);
     let mut program_select_cursor: i32 = 0;
-    let mut current_mode: Mode = Mode::Manual;
     let mut input_reduce: u8 = 0;
-    let mut prog: Option<program::Program> = None;
 
     let mut last = Location::default();
     let mut control = Location::default();
     let mut last_control = control.clone();
     let mut display_counter = 0;
-    let mut calibrated = false;
 
     let (data_sender, data_receiver) = unbounded::<WsMessages>();
     let (cmd_sender, _cmd_receiver) = unbounded::<WsCommands>();
     let pos_msg = WsPositionMessage::new(0.0f64, 0.0f64, 0.0f64);
     let status_msg = WsStatusMessage::new(
-        current_mode.clone(),
-        settings.dev_mode.clone(),
-        speed,
-        in_opp.clone(),
-        if let Some(p) = selected_program {
-            Some(p.clone())
-        } else {
-            None
-        },
-        calibrated.clone(),
+        app.current_mode.clone(),
+        app.settings.dev_mode.clone(),
+        200,
+        app.in_opp.clone(),
+        app.selected_program.clone(),
+        app.calibrated.clone(),
     );
-    pool.spawn_ok(async {
+    app.pool.spawn_ok(async {
         ui_main(cmd_sender, data_receiver, pos_msg, status_msg).expect("could not start WS-server");
     });
 
@@ -155,7 +259,7 @@ fn main() {
         thread::sleep(Duration::new(0, 5_000_000));
         display_counter += 1;
         if display_counter >= 50 {
-            let pos = cnc.get_pos();
+            let pos = app.cnc.get_pos();
             if last != pos {
                 data_sender
                     .send(WsMessages::Position(WsPositionMessage {
@@ -169,7 +273,7 @@ fn main() {
             }
             display_counter = 0;
         }
-        match current_mode {
+        match app.current_mode {
             Mode::Manual => {
                 // controller just every 10th tick
                 input_reduce += 1;
@@ -179,7 +283,7 @@ fn main() {
                 input_reduce = 0;
 
                 // map GamePad events to update the manual program or start a program
-                while let Some(Event { event, .. }) = gilrs.next_event() {
+                while let Some(Event { event, .. }) = app.gilrs.next_event() {
                     match event {
                         EventType::ButtonReleased(Button::Select, _) => {
                             // remove later to avoid killing the machine by mistake
@@ -187,29 +291,26 @@ fn main() {
                         }
                         EventType::ButtonReleased(Button::Start, _)
                         | EventType::ButtonReleased(Button::Mode, _) => {
-                            if !calibrated {
+                            if !app.calibrated {
                                 println!("Warning: start program without calibration")
                             }
-                            if let Some(sel_prog) = selected_program {
+                            if let Some(ref sel_prog) = app.selected_program {
                                 if let Ok(load_prog) =
-                                    Program::new(sel_prog, 5.0, 50.0, 1.0, cnc.get_pos(), false)
+                                    Program::new(sel_prog, 5.0, 50.0, 1.0, app.cnc.get_pos(), false)
                                 {
-                                    prog = Some(load_prog);
-                                    current_mode = Mode::Program;
+                                    app.prog = Some(load_prog);
+                                    app.current_mode = Mode::Program;
 
-                                    data_sender.send(WsMessages::Status(WsStatusMessage::new(
-                                        current_mode.clone(),
-                                        settings.dev_mode.clone(),
-                                        speed,
-                                        in_opp.clone(),
-                                        if let Some(p) = selected_program {
-                                            Some(p.clone())
-                                        } else {
-                                            None
-                                        },
-                                        calibrated.clone(),
-                                    )))
-                                    .unwrap();
+                                    data_sender
+                                        .send(WsMessages::Status(WsStatusMessage::new(
+                                            app.current_mode.clone(),
+                                            app.settings.dev_mode.clone(),
+                                            200,
+                                            app.in_opp.clone(),
+                                            app.selected_program.clone(),
+                                            app.calibrated.clone(),
+                                        )))
+                                        .unwrap();
                                 } else {
                                     println!("program is not able to load")
                                 }
@@ -250,7 +351,8 @@ fn main() {
                             match dir {
                                 Button::DPadUp => {
                                     if program_select_cursor <= 0 {
-                                        program_select_cursor = available_progs.len() as i32 - 1;
+                                        program_select_cursor =
+                                            app.available_progs.len() as i32 - 1;
                                     } else {
                                         program_select_cursor -= 1;
                                     }
@@ -258,22 +360,22 @@ fn main() {
                                 Button::DPadDown => {
                                     program_select_cursor += 1;
 
-                                    if program_select_cursor >= available_progs.len() as i32 {
+                                    if program_select_cursor >= app.available_progs.len() as i32 {
                                         program_select_cursor = 0;
                                     }
                                 }
                                 _ => (),
                             };
-                            for (i, p) in available_progs.iter().enumerate() {
+                            for (i, p) in app.available_progs.iter().enumerate() {
                                 println!("{}: {}", i, p);
                             }
                             println!(
                                 "select {} {}",
                                 program_select_cursor,
-                                available_progs
+                                app.available_progs
                                     .get(
                                         program_select_cursor
-                                            .min(available_progs.len() as i32)
+                                            .min(app.available_progs.len() as i32)
                                             .max(0)
                                             as usize
                                     )
@@ -281,55 +383,59 @@ fn main() {
                             );
                         }
                         EventType::ButtonPressed(Button::South, _) => {
-                            selected_program = available_progs.get(
+                            app.selected_program = if let Some(sel) = app.available_progs.get(
                                 program_select_cursor
-                                    .min(available_progs.len() as i32)
+                                    .min(app.available_progs.len() as i32)
                                     .max(0) as usize,
-                            );
-                            println!("select {:?}", selected_program);
+                            ) {
+                                Some(sel.to_owned())
+                            } else {
+                                None
+                            };
+                            println!("select {:?}", app.selected_program);
                         }
                         EventType::ButtonPressed(Button::North, _) => {
-                            let pos = cnc.get_pos();
+                            let pos = app.cnc.get_pos();
                             if pos.x == 0.0 && pos.y == 0.0 {
                                 println!("reset all (x, y, z)");
-                                cnc.reset();
+                                app.cnc.reset();
                             } else {
                                 println!("reset only plane move (x, y)\nReset again without moving to reset the z axis as well");
-                                cnc.set_pos(Location::new(0.0, 0.0, pos.z));
+                                app.cnc.set_pos(Location::new(0.0, 0.0, pos.z));
                             }
                         }
                         EventType::ButtonPressed(Button::West, _) => {
                             println!("calibrate");
-                            cnc.calibrate(
+                            app.cnc.calibrate(
                                 CalibrateType::None,
                                 CalibrateType::None,
                                 CalibrateType::ContactPin,
                             );
-                            current_mode = Mode::Calibrate;
+                            app.current_mode = Mode::Calibrate;
                         }
                         _ => {}
                     }
                 }
                 if last_control != control {
-                    cnc.manual_move(control.x, control.y, control.z, 20.0);
+                    app.cnc.manual_move(control.x, control.y, control.z, 20.0);
                     last_control = control.clone();
                 }
             }
             Mode::Program => {
-                while let Some(Event { event, .. }) = gilrs.next_event() {
+                while let Some(Event { event, .. }) = app.gilrs.next_event() {
                     if let EventType::ButtonReleased(Button::Select, _) = event {
-                        current_mode = Mode::Manual;
-                        if cnc.cancel_task().is_err() {
+                        app.current_mode = Mode::Manual;
+                        if app.cnc.cancel_task().is_err() {
                             panic!("cancle did not work!");
                         };
                     }
                 }
-                if let Some(p) = prog.as_mut() {
+                if let Some(p) = app.prog.as_mut() {
                     for next_instruction in p {
                         match next_instruction {
                             NextInstruction::Movement(next_movement) => {
                                 //println!("Movement: {:?}", next_movement);
-                                cnc.query_task(next_movement);
+                                app.cnc.query_task(next_movement);
                             }
                             NextInstruction::Miscellaneous(task) => {
                                 println!("Miscellaneous {:?}", task);
@@ -345,42 +451,42 @@ fn main() {
                             _ => {}
                         };
                     }
-                    match (cnc.get_state(), in_opp) {
+                    match (app.cnc.get_state(), app.in_opp) {
                         (MachineState::Idle, true) => {
-                            current_mode = Mode::Manual;
-                            in_opp = false;
+                            app.current_mode = Mode::Manual;
+                            app.in_opp = false;
                         }
                         (MachineState::ProgramTask, false) => {
-                            calibrated = false;
-                            in_opp = true;
+                            app.calibrated = false;
+                            app.in_opp = true;
                         }
                         _ => (),
                     }
                 }
             }
             Mode::Calibrate => {
-                while let Some(Event { event, .. }) = gilrs.next_event() {
+                while let Some(Event { event, .. }) = app.gilrs.next_event() {
                     if let EventType::ButtonReleased(Button::Select, _) = event {
-                        current_mode = Mode::Manual;
-                        if cnc.cancel_task().is_err() {
+                        app.current_mode = Mode::Manual;
+                        if app.cnc.cancel_task().is_err() {
                             panic!("cancle did not work!");
                         };
                     }
                 }
-                match (cnc.get_state(), in_opp) {
+                match (app.cnc.get_state(), app.in_opp) {
                     (MachineState::Idle, true) => {
                         let calibrate_hight = Location {
                             x: 0.0f64,
                             y: 0.0f64,
                             z: 20.0f64,
                         };
-                        cnc.set_pos(calibrate_hight);
-                        current_mode = Mode::Manual;
-                        calibrated = true;
-                        in_opp = false;
+                        app.cnc.set_pos(calibrate_hight);
+                        app.current_mode = Mode::Manual;
+                        app.calibrated = true;
+                        app.in_opp = false;
                     }
                     (MachineState::Calibrate, false) => {
-                        in_opp = true;
+                        app.in_opp = true;
                     }
                     _ => (),
                 }

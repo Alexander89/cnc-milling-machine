@@ -3,13 +3,13 @@ use crate::types::{CircleDirection, CircleMovement, LinearMovement, Location, Mo
 use gcode::{buffers::DefaultBuffers, GCode, Mnemonic, Nop, Parser};
 use std::{fs::File, io::prelude::*};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Coordinations {
     Relative,
     Absolute,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Program {
     content: String,
     codes: Vec<GCode>,

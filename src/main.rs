@@ -11,7 +11,10 @@ use crate::settings::Settings;
 use crate::switch::Switch;
 use crate::types::{Location, MachineState};
 use crate::ui::{
-    types::{Mode, WsCommands, WsMessages, WsPositionMessage, WsStatusMessage},
+    types::{
+        InfoLvl, Mode, WsCommands, WsControllerMessage, WsInfoMessage, WsMessages,
+        WsPositionMessage, WsStatusMessage, WsCommandController
+    },
     ui_main,
 };
 
@@ -39,6 +42,9 @@ struct App {
     pub program_select_cursor: i32,
     pub input_reduce: u32,
     pub last_control: Location<f64>,
+    pub freeze_x: bool,
+    pub freeze_y: bool,
+    pub slow_control: bool,
     pub display_counter: u32,
 }
 
@@ -77,6 +83,9 @@ impl App {
             input_reduce: 0,
             last_control: Location::default(),
             display_counter: 0,
+            freeze_x: false,
+            freeze_y: false,
+            slow_control: false,
         };
         app.run(ui_data_receiver, ui_cmd_sender);
     }
@@ -253,7 +262,8 @@ impl App {
         let pos_msg = WsPositionMessage::new(0.0f64, 0.0f64, 0.0f64);
         let status_msg = self.get_status_msg();
         self.pool.spawn_ok(async {
-            ui_main(cmd_sender, data_receiver, pos_msg, status_msg).expect("could not start WS-server");
+            ui_main(cmd_sender, data_receiver, pos_msg, status_msg)
+                .expect("could not start WS-server");
         });
 
         // initial output
@@ -269,6 +279,7 @@ impl App {
         'running: loop {
             thread::sleep(Duration::new(0, 5_000_000));
 
+            // display position, or send it to the ws client
             self.display_counter += 1;
             if self.display_counter >= self.settings.console_pos_update_reduce {
                 let pos = self.cnc.get_pos();
@@ -282,19 +293,43 @@ impl App {
                 self.display_counter = 0;
             }
 
+            // poll current mode of the cnc
             let ok = match self.current_mode {
                 Mode::Manual => {
                     if let Ok(p) = new_progs.try_recv() {
                         println!("new progs {:?}", p);
                     }
                     self.manual_mode()
-                },
+                }
                 Mode::Program => self.program_mode(),
                 Mode::Calibrate => self.calibrate_mode(),
             };
             if !ok {
                 println!("terminate program");
                 break 'running;
+            }
+
+            // handle incoming commands
+            match self.ui_cmd_receiver.try_recv() {
+                Ok(WsCommands::Controller(WsCommandController::FreezeX { freeze })) => {
+                    if self.freeze_x != freeze {
+                        self.freeze_x = freeze;
+                        self.send_controller_msg();
+                    }
+                }
+                Ok(WsCommands::Controller(WsCommandController::FreezeY { freeze })) => {
+                    if self.freeze_y != freeze {
+                        self.freeze_y = freeze;
+                        self.send_controller_msg();
+                    }
+                }
+                Ok(WsCommands::Controller(WsCommandController::Slow { slow })) => {
+                    if self.slow_control != slow {
+                        self.slow_control = slow;
+                        self.send_controller_msg();
+                    }
+                }
+                _ => (),
             };
         }
     }
@@ -315,6 +350,16 @@ impl App {
             .send(WsMessages::Status(self.get_status_msg()))
             .unwrap();
     }
+    pub fn send_controller_msg(&self) {
+        self.ui_data_sender
+            .send(WsMessages::Controller(WsControllerMessage::new(
+                &self.last_control,
+                self.freeze_x,
+                self.freeze_y,
+                self.slow_control,
+            )))
+            .unwrap();
+    }
 
     pub fn get_pos_msg(pos: &Location<f64>) -> WsPositionMessage {
         WsPositionMessage::new(pos.x, pos.y, pos.z)
@@ -327,8 +372,36 @@ impl App {
 }
 
 impl App {
+    pub fn info(&self, msg: String) {
+        println!("INFO: {}", msg);
+        self.ui_data_sender
+            .send(WsMessages::Info(WsInfoMessage::new(InfoLvl::Info, msg)))
+            .unwrap();
+    }
+    pub fn warning(&self, msg: String) {
+        println!("WARN: {}", msg);
+        self.ui_data_sender
+            .send(WsMessages::Info(WsInfoMessage::new(InfoLvl::Warning, msg)))
+            .unwrap();
+    }
+    pub fn error(&self, msg: String) {
+        println!("ERROR: {}", msg);
+        self.ui_data_sender
+            .send(WsMessages::Info(WsInfoMessage::new(InfoLvl::Error, msg)))
+            .unwrap();
+    }
+}
+
+impl App {
+    fn apply_control(&mut self, control: Location<f64>) {
+        if self.last_control != control {
+            self.cnc.manual_move(control.x, control.y, control.z, 20.0);
+            self.last_control = control.clone();
+            self.send_controller_msg();
+        }
+    }
     fn manual_mode(&mut self) -> bool {
-        // controller just every 10th tick
+        // controller just every n-th tick
         self.input_reduce += 1;
         if self.input_reduce < self.settings.input_update_reduce {
             return true;
@@ -336,6 +409,7 @@ impl App {
         self.input_reduce = 0;
 
         let mut control = self.last_control.clone();
+        let speed = if self.slow_control { 1.0f64 } else { 10.0f64 };
         // map GamePad events to update the manual program or start a program
         while let Some(Event { event, .. }) = self.gilrs.next_event() {
             match event {
@@ -346,7 +420,7 @@ impl App {
                 EventType::ButtonReleased(Button::Start, _)
                 | EventType::ButtonReleased(Button::Mode, _) => {
                     if !self.calibrated {
-                        println!("Warning: start program without calibration")
+                        self.warning(format!("start program without calibration"));
                     }
                     if let Some(ref sel_prog) = self.selected_program {
                         if let Ok(load_prog) =
@@ -357,35 +431,35 @@ impl App {
 
                             self.send_status_msg();
                         } else {
-                            println!("program is not able to load")
-                        }
+                            self.error(format!("program is not able to load"));
+                        };
                     } else {
-                        println!("No Program selected")
+                        self.error(format!("No Program selected"));
                     }
                 }
                 EventType::AxisChanged(Axis::LeftStickX, value, _) => {
-                    if value > 0.15 {
-                        control.x = (value as f64 - 0.15) / 8.5 * -10.0;
-                    } else if value < -0.15 {
-                        control.x = (value as f64 + 0.15) / 8.5 * -10.0;
+                    if !self.freeze_x && value > 0.15 {
+                        control.x = (value as f64 - 0.15) / 8.5 * -speed;
+                    } else if !self.freeze_x && value < -0.15 {
+                        control.x = (value as f64 + 0.15) / 8.5 * -speed;
                     } else {
                         control.x = 0.0;
                     }
                 }
                 EventType::AxisChanged(Axis::LeftStickY, value, _) => {
-                    if value > 0.15 {
-                        control.y = (value as f64 - 0.15) / 8.5 * 10.0;
-                    } else if value < -0.15 {
-                        control.y = (value as f64 + 0.15) / 8.5 * 10.0;
+                    if !self.freeze_y && value > 0.15 {
+                        control.y = (value as f64 - 0.15) / 8.5 * speed;
+                    } else if !self.freeze_y && value < -0.15 {
+                        control.y = (value as f64 + 0.15) / 8.5 * speed;
                     } else {
                         control.y = 0.0;
                     }
                 }
                 EventType::AxisChanged(Axis::RightStickY, value, _) => {
                     if value > 0.15 {
-                        control.z = (value as f64 - 0.15) / 8.5 * 10.0;
+                        control.z = (value as f64 - 0.15) / 8.5 * speed;
                     } else if value < -0.15 {
-                        control.z = (value as f64 + 0.15) / 8.5 * 10.0;
+                        control.z = (value as f64 + 0.15) / 8.5 * speed;
                     } else {
                         control.z = 0.0;
                     }
@@ -396,8 +470,7 @@ impl App {
                     match dir {
                         Button::DPadUp => {
                             if self.program_select_cursor <= 0 {
-                                self.program_select_cursor =
-                                    self.available_progs.len() as i32 - 1;
+                                self.program_select_cursor = self.available_progs.len() as i32 - 1;
                             } else {
                                 self.program_select_cursor -= 1;
                             }
@@ -422,8 +495,7 @@ impl App {
                                 .get(
                                     self.program_select_cursor
                                         .min(self.available_progs.len() as i32)
-                                        .max(0)
-                                        as usize
+                                        .max(0) as usize
                                 )
                                 .unwrap()
                         );
@@ -439,20 +511,20 @@ impl App {
                     } else {
                         None
                     };
-                    println!("select {:?}", self.selected_program);
+                    self.info(format!("select {:?}", self.selected_program));
                 }
                 EventType::ButtonPressed(Button::North, _) => {
                     let pos = self.cnc.get_pos();
                     if pos.x == 0.0 && pos.y == 0.0 {
-                        println!("reset all (x, y, z)");
+                        self.info(format!("reset all (x, y, z)"));
                         self.cnc.reset();
                     } else {
-                        println!("reset only plane move (x, y)\nReset again without moving to reset the z axis as well");
+                        self.info(format!("reset only plane move (x, y) -- Reset again without moving to reset the z axis as well"));
                         self.cnc.set_pos(Location::new(0.0, 0.0, pos.z));
                     }
                 }
                 EventType::ButtonPressed(Button::West, _) => {
-                    println!("calibrate");
+                    self.info(format!("calibrate"));
                     self.cnc.calibrate(
                         CalibrateType::None,
                         CalibrateType::None,
@@ -463,39 +535,35 @@ impl App {
                 _ => {}
             }
         }
-        if self.last_control != control {
-            self.cnc.manual_move(control.x, control.y, control.z, 20.0);
-            self.last_control = control.clone();
-        }
+
+        self.apply_control(control);
 
         true
     }
-    fn program_mode(&mut self) -> bool{
+    fn program_mode(&mut self) -> bool {
         while let Some(Event { event, .. }) = self.gilrs.next_event() {
             if let EventType::ButtonReleased(Button::Select, _) = event {
                 self.current_mode = Mode::Manual;
                 if self.cnc.cancel_task().is_err() {
-                    panic!("cancle did not work!");
+                    self.error(format!("cancel did not work"));
+                    panic!("cancel did not work!");
                 };
             }
         }
-        if let Some(p) = self.prog.as_mut() {
+        if let Some(p) = self.prog.clone().as_mut() {
             for next_instruction in p {
                 match next_instruction {
                     NextInstruction::Movement(next_movement) => {
-                        //println!("Movement: {:?}", next_movement);
                         self.cnc.query_task(next_movement);
                     }
                     NextInstruction::Miscellaneous(task) => {
-                        println!("Miscellaneous {:?}", task);
+                        self.info(format!("Miscellaneous {:?}", task));
                     }
                     NextInstruction::NotSupported(err) => {
-                        println!("NotSupported {:?}", err);
-                        //writeln!(err.to_owned());
+                        self.warning(format!("NotSupported {:?}", err));
                     }
                     NextInstruction::InternalInstruction(err) => {
-                        println!("InternalInstruction {:?}", err);
-                        //writeln!(err.to_owned());
+                        self.info(format!("InternalInstruction {:?}", err));
                     }
                     _ => {}
                 };
@@ -520,7 +588,8 @@ impl App {
             if let EventType::ButtonReleased(Button::Select, _) = event {
                 self.current_mode = Mode::Manual;
                 if self.cnc.cancel_task().is_err() {
-                    panic!("cancle did not work!");
+                    self.error(format!("cancel did not work"));
+                    panic!("cancel did not work!");
                 };
             }
         }

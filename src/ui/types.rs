@@ -1,3 +1,4 @@
+use crate::Location;
 use actix::prelude::{Message, Recipient};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -29,10 +30,12 @@ pub struct WsConnectedMessage {
     pub id: String,
 }
 
-pub enum InfoLvl = {
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum InfoLvl {
     Info,
     Warning,
-    Error
+    Error,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -43,11 +46,10 @@ pub struct WsInfoMessage {
 }
 
 impl WsInfoMessage {
-    pub fn new(lvl: InfoLvl, msg: String) -> WsInfoMessage {
-        WsInfoMessage { lvl, msg }
+    pub fn new(lvl: InfoLvl, message: String) -> WsInfoMessage {
+        WsInfoMessage { lvl, message }
     }
 }
-
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -59,7 +61,6 @@ pub struct WsPositionMessage {
 impl WsPositionMessage {
     pub fn new(x: f64, y: f64, z: f64) -> WsPositionMessage {
         WsPositionMessage { x, y, z }
-
     }
 }
 
@@ -69,13 +70,22 @@ pub struct WsControllerMessage {
     pub x: f64,
     pub y: f64,
     pub z: f64,
+    pub freeze_x: bool,
+    pub freeze_y: bool,
+    pub slow: bool,
 }
 impl WsControllerMessage {
-    pub fn new(x: f64, y: f64, z: f64) -> WsControllerMessage {
-        WsControllerMessage { x, y, z }
+    pub fn new(pos: &Location<f64>, freeze_x: bool, freeze_y: bool, slow: bool) -> WsControllerMessage {
+        WsControllerMessage {
+            x: pos.x,
+            y: pos.y,
+            z: pos.z,
+            freeze_x,
+            freeze_y,
+            slow,
+        }
     }
 }
-
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -139,16 +149,24 @@ pub enum WsMessages {
     Reply { to: Uuid, msg: WsReplyMessage },
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-#[serde(tag = "cmd")]
+#[derive(Clone, Debug, Serialize, Deserialize, Message)]
+#[serde(rename_all = "camelCase", tag = "cmd")]
+#[rtype(result = "()")]
 pub enum WsCommands {
     Prog(WsCommandProg),
+    Controller(WsCommandController),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-#[serde(tag = "action")]
+#[serde(rename_all = "camelCase", tag = "action")]
 pub enum WsCommandProg {
     Load(String),
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "action")]
+pub enum WsCommandController {
+    FreezeX { freeze: bool },
+    FreezeY { freeze: bool },
+    Slow { slow: bool },
 }

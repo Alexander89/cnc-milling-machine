@@ -32,5 +32,6 @@ default_speed: 5.0
 rapid_speed: 50.0
 scaler: 1.0
 invert_z: false
-show_console_output: false
+show_console_output: true
 console_pos_update_reduce: 50
+message_lvl: info

@@ -125,3 +125,11 @@ impl Handler<WsMessages> for System {
         }
     }
 }
+
+impl Handler<WsCommands> for System {
+    type Result = ();
+
+    fn handle(&mut self, msg: WsCommands, _: &mut SystemCtx) -> Self::Result {
+        self.sender.send(msg).unwrap();
+    }
+}

@@ -30,7 +30,6 @@ const monitoringServiceMock: MonitoringService = {
     devMode: false,
     inOpp: false,
     mode: 'manual',
-    speed: 200,
     currentProg: undefined,
   })
 }

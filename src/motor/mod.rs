@@ -274,7 +274,6 @@ impl MotorControllerThread {
                             // );
                             if *speed == 0.0f64 || *distance == 0.0f64 {
                                 self.current_task = None;
-                                println!("stop for speed 0 distance 0");
                                 continue;
                             }
                             let duration = Duration::from_secs_f64(*distance / *speed);

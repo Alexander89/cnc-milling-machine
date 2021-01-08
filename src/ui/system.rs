@@ -109,11 +109,19 @@ impl Handler<WsMessages> for System {
     type Result = ();
 
     fn handle(&mut self, msg: WsMessages, _: &mut SystemCtx) -> Self::Result {
-        self.send_message(msg.clone());
-        match msg {
-            WsMessages::Connected(_connected) => (),
-            WsMessages::Position(position) => self.last_state.position = position,
-            WsMessages::Status(status) => self.last_state.status = status,
+        if let WsMessages::Reply { to, msg } = msg {
+            let new_msg = WsMessages::Reply {
+                to: to.clone(),
+                msg,
+            };
+            self.send_message_to(new_msg, &to);
+        } else {
+            match msg {
+                WsMessages::Position(ref position) => self.last_state.position = position.clone(),
+                WsMessages::Status(ref status) => self.last_state.status = status.clone(),
+                _ => (),
+            }
+            self.send_message(msg);
         }
     }
 }

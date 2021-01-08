@@ -13,7 +13,6 @@ export const StatusMessage = t.type({
   type: t.literal('status'),
   mode: t.union([t.literal('manual'), t.literal('program'), t.literal('calibrate')]),
   devMode: t.boolean,
-  speed: t.number,
   inOpp: t.boolean,
   currentProg: t.union([t.undefined, t.string]),
   calibrated: t.boolean,

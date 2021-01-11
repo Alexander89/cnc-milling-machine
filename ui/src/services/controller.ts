@@ -1,5 +1,24 @@
-import { Observable, of, Subject } from 'rxjs'
-import * as MSG from './types'
+import { isRight } from 'fp-ts/lib/Either'
+import * as t from 'io-ts'
+import { Observable, of, BehaviorSubject } from 'rxjs'
+
+// -------------- Messages
+
+export const ControllerMessageC = t.type({
+  type: t.literal('controller'),
+  x: t.number,
+  y: t.number,
+  z: t.number,
+  freezeX: t.boolean,
+  freezeY: t.boolean,
+  slow: t.boolean
+})
+export type ControllerMessage = t.TypeOf<typeof ControllerMessageC>
+
+export const isControllerMessage = (msg: object): msg is ControllerMessage =>
+  isRight(ControllerMessageC.decode(msg))
+
+// -------------- Commands
 
 export type FreezeXCommand = {
   cmd: 'controller'
@@ -19,30 +38,27 @@ export type SlowControlCommand = {
 export type FreezeCommand = FreezeXCommand | FreezeYCommand
 export type ControllerCommand = FreezeCommand | SlowControlCommand
 
+// -------------- Services
+
 export type ControllerService = {
-  sendCommand: (cmd: ControllerCommand) => void
-  controller$: Observable<MSG.ControllerMessage>
+  controller$: Observable<ControllerMessage | undefined>
 }
+
 const controllerServiceLive = (ws: WebSocket): ControllerService => {
-  const controllerSub = new Subject<MSG.ControllerMessage>()
+  const controllerSub = new BehaviorSubject<ControllerMessage | undefined>(undefined)
   ws.addEventListener('message', ({ data }) => {
     const msg = JSON.parse(data)
-    if (MSG.isControllerMessage(msg)) {
+    if (isControllerMessage(msg)) {
       controllerSub.next(msg)
     }
   })
 
-  const sendCommand = (cmd: ControllerCommand) => {
-    ws.send(JSON.stringify(cmd))
-  }
-
   return {
-    sendCommand,
     controller$: controllerSub.asObservable()
   }
 }
+
 const controllerServiceMock: ControllerService = {
-  sendCommand: (_: ControllerCommand) => 0,
   controller$: of({ type: 'controller', x: 0, y: 0, z: 0, freezeX: false, freezeY: false, slow: false })
 }
 

@@ -18,13 +18,19 @@ export const ToggleButton = ({ children, value, onClick }: Props) => {
 
 const useStyle = createUseStyles({
   toggleStyle: {
-    fontSize: 14,
-    backgroundColor: '#b0b0d7',
-    border: 'solid 1px #d0d0d0'
+    fontSize: '24px !important',
+    backgroundColor: '#b0b0d7 !important',
+    border: 'solid 1px #d0d0d0',
+    borderRadius: 10,
+    boxShadow: '3px 3px 3px #555, inset 3px 3px 3px 0px #d6d6e6',
+    adjustContent: 'center',
+    textAlign: 'center',
+    padding: '5px 10px',
+    margin: 5
   },
   toggleStyleActive: {
-    fontSize: 14,
-    backgroundColor: '#6d6db0',
-    border: 'solid 1px #c0c0c0'
+    backgroundColor: '#6d6db0 !important',
+    border: 'solid 1px #c0c0c0',
+    boxShadow: '3px 3px 3px #555, inset 3px 3px 3px #555, inset -3px -3px 3px 0px #a8a8d6'
   }
 })

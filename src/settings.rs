@@ -6,8 +6,11 @@ pub struct MotorSettings {
     pub max_step_speed: u32,
     pub pull_gpio: u8,
     pub dir_gpio: u8,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub ena_gpio: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub end_left_gpio: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub end_right_gpio: Option<u8>,
     pub step_size: f64,
 }
@@ -23,7 +26,7 @@ pub struct Settings {
     pub input_update_reduce: u32,
     pub default_speed: f64,
     pub rapid_speed: f64,
-    pub scaler: f64,
+    pub scale: f64,
     pub invert_z: bool,
     pub show_console_output: bool,
     pub console_pos_update_reduce: u32,
@@ -65,7 +68,7 @@ impl Default for Settings {
             input_update_reduce: 10u32,
             default_speed: 5.0f64,
             rapid_speed: 50.0f64,
-            scaler: 1.0f64,
+            scale: 1.0f64,
             invert_z: false,
             show_console_output: false,
             console_pos_update_reduce: 50u32,

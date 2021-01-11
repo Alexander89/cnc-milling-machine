@@ -8,11 +8,11 @@ use actix_web::{get, web::Data, web::Payload, App, Error, HttpRequest, HttpRespo
 use actix_web_actors::ws;
 use crossbeam_channel::{Receiver, Sender};
 use system::System;
-use types::{WsCommands, WsMessages, WsPositionMessage, WsStatusMessage};
+use types::{WsCommandsFrom, WsControllerMessage, WsMessages, WsPositionMessage, WsStatusMessage};
 use ws_connection::WsConnection;
 
 type WsReceiver = Receiver<WsMessages>;
-type WsSender = Sender<WsCommands>;
+type WsSender = Sender<WsCommandsFrom>;
 
 #[get("/ws")]
 pub async fn web_socket(
@@ -32,8 +32,9 @@ pub async fn ui_main(
     receiver: WsReceiver,
     position: WsPositionMessage,
     status: WsStatusMessage,
+    controller: WsControllerMessage,
 ) -> std::io::Result<()> {
-    let system = System::new(sender, receiver, position, status);
+    let system = System::new(sender, receiver, position, status, controller);
 
     HttpServer::new(move || {
         App::new()

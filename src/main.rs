@@ -12,8 +12,9 @@ use crate::switch::Switch;
 use crate::types::{Location, MachineState};
 use crate::ui::{
     types::{
-        InfoLvl, Mode, WsCommands, WsControllerMessage, WsInfoMessage, WsMessages,
-        WsPositionMessage, WsStatusMessage, WsCommandController
+        InfoLvl, Mode, ProgramInfo, WsAvailableProgramsMessage, WsCommandController,
+        WsCommandProgram, WsCommands, WsCommandsFrom, WsControllerMessage, WsInfoMessage,
+        WsMessages, WsPositionMessage, WsReplyMessage, WsStatusMessage,
     },
     ui_main,
 };
@@ -23,7 +24,14 @@ use futures::executor::ThreadPool;
 use gilrs::{Axis, Button, Event, EventType, Gilrs};
 use notify::{raw_watcher, RawEvent, RecursiveMode, Watcher};
 use std::sync::mpsc;
-use std::{fs, thread, time::Duration};
+use std::{
+    fs::{self, remove_file, File},
+    io::prelude::*,
+    path::Path,
+    thread,
+    time::Duration,
+};
+use uuid::Uuid;
 
 struct App {
     pub available_progs: Vec<String>,
@@ -37,7 +45,7 @@ struct App {
     pub calibrated: bool,
     pub selected_program: Option<String>,
     ui_data_sender: Sender<WsMessages>,
-    ui_cmd_receiver: Receiver<WsCommands>,
+    ui_cmd_receiver: Receiver<WsCommandsFrom>,
 
     pub program_select_cursor: i32,
     pub input_reduce: u32,
@@ -63,7 +71,7 @@ impl App {
 
         // init UI connection channel
         let (ui_data_sender, ui_data_receiver) = unbounded::<WsMessages>();
-        let (ui_cmd_sender, ui_cmd_receiver) = unbounded::<WsCommands>();
+        let (ui_cmd_sender, ui_cmd_receiver) = unbounded::<WsCommandsFrom>();
 
         // return tuple with app and ui channel
         let mut app = App {
@@ -235,7 +243,7 @@ impl App {
                             publish_update = true;
                         }
                         _ => {
-                            thread::sleep(Duration::new(1, 0));
+                            thread::sleep(Duration::new(0, 250_000_000));
                             if publish_update {
                                 let (changed, ap) =
                                     App::update_available_progs(&path_vec, &known_progs);
@@ -255,15 +263,22 @@ impl App {
         });
         (send_path_changed, receiver_new_progs)
     }
-    fn run(&mut self, data_receiver: Receiver<WsMessages>, cmd_sender: Sender<WsCommands>) {
+    fn run(&mut self, data_receiver: Receiver<WsMessages>, cmd_sender: Sender<WsCommandsFrom>) {
         let (_update_path, new_progs) = self.start_file_watcher();
 
         // create Http-Server for the UI
         let pos_msg = WsPositionMessage::new(0.0f64, 0.0f64, 0.0f64);
         let status_msg = self.get_status_msg();
+        let controller_msg = WsControllerMessage::new(&Location::default(), false, false, false);
         self.pool.spawn_ok(async {
-            ui_main(cmd_sender, data_receiver, pos_msg, status_msg)
-                .expect("could not start WS-server");
+            ui_main(
+                cmd_sender,
+                data_receiver,
+                pos_msg,
+                status_msg,
+                controller_msg,
+            )
+            .expect("could not start WS-server");
         });
 
         // initial output
@@ -295,43 +310,127 @@ impl App {
 
             // poll current mode of the cnc
             let ok = match self.current_mode {
-                Mode::Manual => {
-                    if let Ok(p) = new_progs.try_recv() {
-                        println!("new progs {:?}", p);
-                    }
-                    self.manual_mode()
-                }
                 Mode::Program => self.program_mode(),
                 Mode::Calibrate => self.calibrate_mode(),
+                _ => self.manual_mode(),
             };
             if !ok {
                 println!("terminate program");
                 break 'running;
             }
 
+            if let Ok(p) = new_progs.try_recv() {
+                self.set_available_programs(p);
+            }
+
             // handle incoming commands
-            match self.ui_cmd_receiver.try_recv() {
-                Ok(WsCommands::Controller(WsCommandController::FreezeX { freeze })) => {
-                    if self.freeze_x != freeze {
-                        self.freeze_x = freeze;
-                        self.send_controller_msg();
+            if let Ok(WsCommandsFrom(uuid, cmd)) = self.ui_cmd_receiver.try_recv() {
+                match cmd {
+                    WsCommands::Controller(WsCommandController::FreezeX { freeze }) => {
+                        if self.freeze_x != freeze {
+                            self.freeze_x = freeze;
+                            self.send_controller_msg();
+                        }
                     }
-                }
-                Ok(WsCommands::Controller(WsCommandController::FreezeY { freeze })) => {
-                    if self.freeze_y != freeze {
-                        self.freeze_y = freeze;
-                        self.send_controller_msg();
+                    WsCommands::Controller(WsCommandController::FreezeY { freeze }) => {
+                        if self.freeze_y != freeze {
+                            self.freeze_y = freeze;
+                            self.send_controller_msg();
+                        }
                     }
-                }
-                Ok(WsCommands::Controller(WsCommandController::Slow { slow })) => {
-                    if self.slow_control != slow {
-                        self.slow_control = slow;
-                        self.send_controller_msg();
+                    WsCommands::Controller(WsCommandController::Slow { slow }) => {
+                        if self.slow_control != slow {
+                            self.slow_control = slow;
+                            self.send_controller_msg();
+                        }
                     }
-                }
-                _ => (),
-            };
+                    WsCommands::Program(WsCommandProgram::Get) => {
+                        self.send_available_programs_msg(uuid)
+                    }
+                    WsCommands::Program(WsCommandProgram::Load { program_name }) => {
+                        self.send_program_data_msg(uuid, program_name)
+                    }
+                    WsCommands::Program(WsCommandProgram::Start {
+                        program_name,
+                        invert_z,
+                        scale,
+                    }) => {
+                        if self.start_program(&program_name, invert_z, scale) {
+                            self.send_start_reply_message(uuid, program_name)
+                        }
+                    }
+                    WsCommands::Program(WsCommandProgram::Cancel) => {
+                        self.cancel_program();
+                        self.send_cancel_reply_message(uuid, true);
+                    }
+                    WsCommands::Program(WsCommandProgram::Save {
+                        program_name,
+                        program,
+                    }) => {
+                        if Path::new(&program_name).exists() {
+                            match File::open(program_name.clone()) {
+                                Err(why) => {
+                                    self.info(format!("couldn't open {}: {}", program_name, why));
+                                    self.send_save_reply_message(uuid, program_name, false);
+                                }
+                                Ok(mut file) => {
+                                    match file.write_all(program.as_bytes()) {
+                                        Err(why) => {
+                                            self.info(format!(
+                                                "couldn't write to {}: {}",
+                                                program_name, why
+                                            ));
+                                            self.send_save_reply_message(uuid, program_name, false);
+                                        }
+                                        Ok(_) => {
+                                            self.send_save_reply_message(uuid, program_name, true)
+                                        }
+                                    };
+                                }
+                            }
+                        } else {
+                            match File::create(&program_name) {
+                                Err(why) => {
+                                    self.info(format!(
+                                        "couldn't write to {}: {}",
+                                        program_name, why
+                                    ));
+                                    self.send_save_reply_message(uuid, program_name, true);
+                                }
+                                Ok(mut file) => self.send_save_reply_message(
+                                    uuid,
+                                    program_name,
+                                    file.write_all(program.as_bytes()).is_ok(),
+                                ),
+                            }
+                        }
+                    }
+                    WsCommands::Program(WsCommandProgram::Delete { program_name }) => {
+                        self.send_delete_reply_message(
+                            uuid,
+                            program_name.clone(),
+                            remove_file(program_name).is_ok(),
+                        );
+                    }
+                    _ => (),
+                };
+            }
         }
+    }
+}
+
+impl App {
+    pub fn set_current_mode(&mut self, mode: Mode) {
+        self.current_mode = mode;
+        self.send_status_msg();
+    }
+    pub fn set_available_programs(&mut self, available_progs: Vec<String>) {
+        self.available_progs = available_progs;
+        self.send_available_program_msg();
+    }
+    pub fn set_selected_program(&mut self, selected_program: Option<String>) {
+        self.selected_program = selected_program;
+        self.send_status_msg();
     }
 }
 
@@ -350,6 +449,19 @@ impl App {
             .send(WsMessages::Status(self.get_status_msg()))
             .unwrap();
     }
+    pub fn send_available_program_msg(&self) {
+        self.ui_data_sender
+            .send(WsMessages::ProgsUpdate(WsAvailableProgramsMessage {
+                progs: self
+                    .available_progs
+                    .iter()
+                    .map(|name| name.to_owned())
+                    .map(ProgramInfo::from_string)
+                    .collect(),
+                input_dir: self.settings.input_dir.clone(),
+            }))
+            .unwrap();
+    }
     pub fn send_controller_msg(&self) {
         self.ui_data_sender
             .send(WsMessages::Controller(WsControllerMessage::new(
@@ -358,6 +470,71 @@ impl App {
                 self.freeze_y,
                 self.slow_control,
             )))
+            .unwrap();
+    }
+    pub fn send_available_programs_msg(&self, to: Uuid) {
+        self.ui_data_sender
+            .send(WsMessages::Reply {
+                to,
+                msg: WsReplyMessage::AvailablePrograms(WsAvailableProgramsMessage {
+                    progs: self
+                        .available_progs
+                        .iter()
+                        .map(|name| name.to_owned())
+                        .map(ProgramInfo::from_string)
+                        .collect(),
+                    input_dir: self.settings.input_dir.clone(),
+                }),
+            })
+            .unwrap();
+    }
+    pub fn send_program_data_msg(&self, to: Uuid, program_name: String) {
+        let mut file = File::open(program_name.clone()).unwrap();
+        let mut program = String::new();
+        file.read_to_string(&mut program).unwrap();
+
+        self.ui_data_sender
+            .send(WsMessages::Reply {
+                to,
+                msg: WsReplyMessage::LoadProgram {
+                    program,
+                    program_name,
+                    invert_z: self.settings.invert_z,
+                    scale: self.settings.scale,
+                },
+            })
+            .unwrap();
+    }
+    pub fn send_start_reply_message(&self, to: Uuid, program_name: String) {
+        self.ui_data_sender
+            .send(WsMessages::Reply {
+                to,
+                msg: WsReplyMessage::StartProgram { program_name },
+            })
+            .unwrap();
+    }
+    pub fn send_cancel_reply_message(&self, to: Uuid, ok: bool) {
+        self.ui_data_sender
+            .send(WsMessages::Reply {
+                to,
+                msg: WsReplyMessage::CancelProgram { ok },
+            })
+            .unwrap();
+    }
+    pub fn send_save_reply_message(&self, to: Uuid, program_name: String, ok: bool) {
+        self.ui_data_sender
+            .send(WsMessages::Reply {
+                to,
+                msg: WsReplyMessage::SaveProgram { ok, program_name },
+            })
+            .unwrap();
+    }
+    pub fn send_delete_reply_message(&self, to: Uuid, program_name: String, ok: bool) {
+        self.ui_data_sender
+            .send(WsMessages::Reply {
+                to,
+                msg: WsReplyMessage::DeleteProgram { ok, program_name },
+            })
             .unwrap();
     }
 
@@ -427,9 +604,7 @@ impl App {
                             Program::new(sel_prog, 5.0, 50.0, 1.0, self.cnc.get_pos(), false)
                         {
                             self.prog = Some(load_prog);
-                            self.current_mode = Mode::Program;
-
-                            self.send_status_msg();
+                            self.set_current_mode(Mode::Program);
                         } else {
                             self.error(format!("program is not able to load"));
                         };
@@ -502,15 +677,15 @@ impl App {
                     }
                 }
                 EventType::ButtonPressed(Button::South, _) => {
-                    self.selected_program = if let Some(sel) = self.available_progs.get(
-                        self.program_select_cursor
-                            .min(self.available_progs.len() as i32)
-                            .max(0) as usize,
-                    ) {
-                        Some(sel.to_owned())
-                    } else {
-                        None
-                    };
+                    let selected = self
+                        .available_progs
+                        .get(
+                            self.program_select_cursor
+                                .min(self.available_progs.len() as i32)
+                                .max(0) as usize,
+                        )
+                        .map(|p| p.to_owned());
+                    self.set_selected_program(selected);
                     self.info(format!("select {:?}", self.selected_program));
                 }
                 EventType::ButtonPressed(Button::North, _) => {
@@ -530,7 +705,7 @@ impl App {
                         CalibrateType::None,
                         CalibrateType::ContactPin,
                     );
-                    self.current_mode = Mode::Calibrate;
+                    self.set_current_mode(Mode::Calibrate);
                 }
                 _ => {}
             }
@@ -543,15 +718,18 @@ impl App {
     fn program_mode(&mut self) -> bool {
         while let Some(Event { event, .. }) = self.gilrs.next_event() {
             if let EventType::ButtonReleased(Button::Select, _) = event {
-                self.current_mode = Mode::Manual;
+                self.info(format!("Cancel current job"));
+                self.set_current_mode(Mode::Manual);
                 if self.cnc.cancel_task().is_err() {
                     self.error(format!("cancel did not work"));
                     panic!("cancel did not work!");
                 };
             }
         }
-        if let Some(p) = self.prog.clone().as_mut() {
-            for next_instruction in p {
+        let p = self.prog.clone();
+        self.prog = None;
+        if let Some(prog) = p {
+            for next_instruction in prog {
                 match next_instruction {
                     NextInstruction::Movement(next_movement) => {
                         self.cnc.query_task(next_movement);
@@ -570,7 +748,7 @@ impl App {
             }
             match (self.cnc.get_state(), self.in_opp) {
                 (MachineState::Idle, true) => {
-                    self.current_mode = Mode::Manual;
+                    self.set_current_mode(Mode::Manual);
                     self.in_opp = false;
                 }
                 (MachineState::ProgramTask, false) => {
@@ -586,7 +764,7 @@ impl App {
     fn calibrate_mode(&mut self) -> bool {
         while let Some(Event { event, .. }) = self.gilrs.next_event() {
             if let EventType::ButtonReleased(Button::Select, _) = event {
-                self.current_mode = Mode::Manual;
+                self.set_current_mode(Mode::Manual);
                 if self.cnc.cancel_task().is_err() {
                     self.error(format!("cancel did not work"));
                     panic!("cancel did not work!");
@@ -601,7 +779,7 @@ impl App {
                     z: 20.0f64,
                 };
                 self.cnc.set_pos(calibrate_hight);
-                self.current_mode = Mode::Manual;
+                self.set_current_mode(Mode::Manual);
                 self.calibrated = true;
                 self.in_opp = false;
             }
@@ -613,8 +791,39 @@ impl App {
 
         true
     }
+    pub fn start_program(&mut self, program_name: &String, invert_z: bool, scale: f64) -> bool {
+        if !self.calibrated {
+            self.warning(format!("start program without calibration"));
+        }
+        self.set_selected_program(Some(program_name.to_owned()));
+        if let Ok(load_prog) = Program::new(
+            &program_name,
+            5.0,
+            50.0,
+            scale,
+            self.cnc.get_pos(),
+            invert_z,
+        ) {
+            self.prog = Some(load_prog);
+            self.set_current_mode(Mode::Program);
+            true
+        } else {
+            self.error(format!("program is not able to load"));
+            false
+        }
+    }
+    pub fn cancel_program(&mut self) {
+        self.set_selected_program(None);
+        self.set_current_mode(Mode::Manual);
+        if self.cnc.cancel_task().is_err() {
+            self.error(format!("cancel did not work"));
+            panic!("cancel did not work!");
+        };
+    }
 }
 
 fn main() {
+    // let package = WsCommands::Program(WsCommandProgram::Load{program_name: String::from("name")});
+    // println!("output {:?}", serde_json::to_string(&package));
     App::start();
 }

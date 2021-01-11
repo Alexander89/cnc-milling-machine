@@ -5,10 +5,17 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "prestart": "tsc --noEmit",
+    "s_prestart": "tsc --noEmit",
     "start": "parcel src/index.html",
-    "build": "parcel build src/index.html",
-    "lint": "eslint ./src/**/* --fix"
+    "build": "npm run monaco:build:release && parcel build src/index.html",
+    "lint": "eslint ./src/**/* --fix",
+    "monaco:build:debug": "npm run monaco:build-json build/diff/debug && npm run monaco:build-css build/diff/debug && npm run monaco:build-html build/diff/debug && npm run monaco:build-ts build/diff/debug && npm run monaco:build-worker build/diff/debug",
+    "monaco:build:release": "npm run monaco:build-json src/diff/release && npm run monaco:build-css src/diff/release && npm run monaco:build-html src/diff/release && npm run monaco:build-ts src/diff/release && npm run monaco:build-worker src/diff/release",
+    "monaco:build-json": "parcel build node_modules/monaco-editor/esm/vs/language/json/json.worker.js --no-source-maps --out-dir ",
+    "monaco:build-css": "parcel build node_modules/monaco-editor/esm/vs/language/css/css.worker.js --no-source-maps --out-dir ",
+    "monaco:build-html": "parcel build node_modules/monaco-editor/esm/vs/language/html/html.worker.js --no-source-maps --out-dir ",
+    "monaco:build-ts": "parcel build node_modules/monaco-editor/esm/vs/language/typescript/ts.worker.js --no-source-maps --out-dir ",
+    "monaco:build-worker": "parcel build node_modules/monaco-editor/esm/vs/editor/editor.worker.js --no-source-maps --out-dir "
   },
   "author": "",
   "license": "ISC",
@@ -33,6 +40,7 @@
     "react": "^17.0.1",
     "react-dom": "^17.0.1",
     "react-jss": "^10.5.0",
-    "rxjs": "^6.6.3"
+    "rxjs": "^6.6.3",
+    "monaco-editor": "^0.21.2"
   }
 }

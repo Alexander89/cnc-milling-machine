@@ -1,5 +1,5 @@
 use super::system::System;
-use crate::ui::types::{Connect, Disconnect, WsCommands, WsMessages};
+use crate::ui::types::{Connect, Disconnect, WsCommands, WsCommandsFrom, WsMessages};
 use actix::{
     fut, Actor, ActorContext, ActorFuture, Addr, AsyncContext, ContextFutureSpawner, Handler,
     Running, StreamHandler, WrapFuture,
@@ -95,7 +95,8 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsConnection {
             Ok(ws::Message::Nop) => (),
             Ok(ws::Message::Text(s)) => {
                 if let Ok(cmd) = serde_json::from_str::<WsCommands>(&s) {
-                    self.system_addr.do_send(cmd);
+                    self.system_addr
+                        .do_send(WsCommandsFrom(self.id.clone(), cmd));
                 } else {
                     println!("got unknown message {}", s);
                 }

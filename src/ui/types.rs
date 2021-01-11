@@ -1,6 +1,8 @@
+use crate::settings::MotorSettings;
 use crate::Location;
 use actix::prelude::{Message, Recipient};
 use serde::{Deserialize, Serialize};
+use std::{fs, time::SystemTime};
 use uuid::Uuid;
 
 #[derive(Message)]
@@ -75,7 +77,12 @@ pub struct WsControllerMessage {
     pub slow: bool,
 }
 impl WsControllerMessage {
-    pub fn new(pos: &Location<f64>, freeze_x: bool, freeze_y: bool, slow: bool) -> WsControllerMessage {
+    pub fn new(
+        pos: &Location<f64>,
+        freeze_x: bool,
+        freeze_y: bool,
+        slow: bool,
+    ) -> WsControllerMessage {
         WsControllerMessage {
             x: pos.x,
             y: pos.y,
@@ -119,9 +126,34 @@ impl WsStatusMessage {
 pub struct ProgramInfo {
     pub name: String,
     pub path: String,
-    pub size: u32,
+    pub size: u64,
     pub lines_of_code: u32,
     pub create_date_ts: u64,
+    pub modified_date_ts: u64,
+}
+
+impl ProgramInfo {
+    pub fn from_string(name: String) -> ProgramInfo {
+        let metadata = fs::metadata(name.clone()).unwrap();
+        ProgramInfo {
+            name: name.to_owned(),
+            path: String::from(""),
+            size: metadata.len(),
+            lines_of_code: 0,
+            create_date_ts: metadata
+                .created()
+                .unwrap_or(SystemTime::now())
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+            modified_date_ts: metadata
+                .modified()
+                .unwrap_or(SystemTime::now())
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -135,6 +167,30 @@ pub struct WsAvailableProgramsMessage {
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum WsReplyMessage {
     AvailablePrograms(WsAvailableProgramsMessage),
+    #[serde(rename_all = "camelCase")]
+    LoadProgram {
+        program_name: String,
+        program: String,
+        invert_z: bool,
+        scale: f64,
+    },
+    #[serde(rename_all = "camelCase")]
+    SaveProgram {
+        program_name: String,
+        ok: bool,
+    },
+    #[serde(rename_all = "camelCase")]
+    DeleteProgram {
+        program_name: String,
+        ok: bool,
+    },
+    #[serde(rename_all = "camelCase")]
+    StartProgram {
+        program_name: String,
+    },
+    CancelProgram {
+        ok: bool,
+    },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Message)]
@@ -144,23 +200,48 @@ pub enum WsMessages {
     Connected(WsConnectedMessage),
     Info(WsInfoMessage),
     Position(WsPositionMessage),
+    ProgsUpdate(WsAvailableProgramsMessage),
     Controller(WsControllerMessage),
     Status(WsStatusMessage),
     Reply { to: Uuid, msg: WsReplyMessage },
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Message)]
-#[serde(rename_all = "camelCase", tag = "cmd")]
+#[derive(Clone, Debug, Message)]
 #[rtype(result = "()")]
+pub struct WsCommandsFrom(pub Uuid, pub WsCommands);
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "cmd")]
 pub enum WsCommands {
-    Prog(WsCommandProg),
+    Program(WsCommandProgram),
     Controller(WsCommandController),
+    Settings(WsCommandSettings),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "action")]
-pub enum WsCommandProg {
-    Load(String),
+pub enum WsCommandProgram {
+    Get,
+    #[serde(rename_all = "camelCase")]
+    Load {
+        program_name: String,
+    },
+    #[serde(rename_all = "camelCase")]
+    Save {
+        program_name: String,
+        program: String,
+    },
+    #[serde(rename_all = "camelCase")]
+    Delete {
+        program_name: String,
+    },
+    #[serde(rename_all = "camelCase")]
+    Start {
+        program_name: String,
+        invert_z: bool,
+        scale: f64,
+    },
+    Cancel,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -169,4 +250,36 @@ pub enum WsCommandController {
     FreezeX { freeze: bool },
     FreezeY { freeze: bool },
     Slow { slow: bool },
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum WsCommandSettings {
+    #[serde(rename_all = "camelCase")]
+    System {
+        dev_mode: bool,
+        motor_x: MotorSettings,
+        motor_y: MotorSettings,
+        motor_z: MotorSettings,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        calibrate_z_gpio: Option<u8>,
+    },
+    #[serde(rename_all = "camelCase")]
+    Runtime {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        input_dir: Option<Vec<String>>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        input_update_reduce: Option<u32>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        default_speed: Option<f64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        rapid_speed: Option<f64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        scale: Option<f64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        invert_z: Option<bool>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        show_console_output: Option<bool>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        console_pos_update_reduce: Option<u32>,
+    },
 }

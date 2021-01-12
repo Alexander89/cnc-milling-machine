@@ -18,8 +18,8 @@ export const Menu = ({ mode, onChanged }: Props) => {
     <div className={bottoms}>
       <Entry m={'main'} title={'Monitoring'} />
       <Entry m={'program'} title={'Jobs'} />
+      <Entry m={'calibrate'} title={'Calibrate'} />
       <Entry m={'settings'} title={'Settings'} />
-      <Entry m={'system'} title={'System'} />
     </div>
   </div>
 }

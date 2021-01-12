@@ -191,6 +191,28 @@ pub enum WsReplyMessage {
     CancelProgram {
         ok: bool,
     },
+    #[serde(rename_all = "camelCase")]
+    RuntimeSettings {
+        input_dir: Vec<String>,
+        input_update_reduce: u32,
+        default_speed: f64,
+        rapid_speed: f64,
+        scale: f64,
+        invert_z: bool,
+        show_console_output: bool,
+        console_pos_update_reduce: u32,
+    },
+    RuntimeSettingsSaved{ ok: bool },
+    #[serde(rename_all = "camelCase")]
+    SystemSettings {
+        dev_mode: bool,
+        motor_x: MotorSettings,
+        motor_y: MotorSettings,
+        motor_z: MotorSettings,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        calibrate_z_gpio: Option<u8>,
+    },
+    SystemSettingsSaved{ ok: bool },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Message)]
@@ -253,33 +275,43 @@ pub enum WsCommandController {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "action")]
 pub enum WsCommandSettings {
+    GetSystem,
     #[serde(rename_all = "camelCase")]
-    System {
-        dev_mode: bool,
-        motor_x: MotorSettings,
-        motor_y: MotorSettings,
-        motor_z: MotorSettings,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        calibrate_z_gpio: Option<u8>,
-    },
-    #[serde(rename_all = "camelCase")]
-    Runtime {
-        #[serde(skip_serializing_if = "Option::is_none")]
-        input_dir: Option<Vec<String>>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        input_update_reduce: Option<u32>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        default_speed: Option<f64>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        rapid_speed: Option<f64>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        scale: Option<f64>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        invert_z: Option<bool>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        show_console_output: Option<bool>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        console_pos_update_reduce: Option<u32>,
-    },
+    SetSystem(WsCommandSettingsSetSystemSettings),
+    GetRuntime,
+    SetRuntime(WsCommandSettingsSetRuntimeSettings),
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WsCommandSettingsSetSystemSettings {
+    pub dev_mode: bool,
+    pub motor_x: MotorSettings,
+    pub motor_y: MotorSettings,
+    pub motor_z: MotorSettings,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub calibrate_z_gpio: Option<u8>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WsCommandSettingsSetRuntimeSettings {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_dir: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_update_reduce: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_speed: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rapid_speed: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scale: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub invert_z: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub show_console_output: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub console_pos_update_reduce: Option<u32>,
 }

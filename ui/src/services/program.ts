@@ -135,7 +135,7 @@ export type ProgramService = {
   cancelProg$: Observable<CancelProgram>
 }
 
-const controllerServiceLive = (ws: WebSocket): ProgramService => {
+const programServiceLive = (ws: WebSocket): ProgramService => {
   const availableProgsSub = new BehaviorSubject<AvailableProgramsMessage | undefined>(undefined)
   const loadProgsSub = new BehaviorSubject<LoadProgram | undefined>(undefined)
   const saveProgsSub = new Subject<SaveProgram>()
@@ -182,11 +182,11 @@ const controllerServiceLive = (ws: WebSocket): ProgramService => {
   }
 }
 
-// const controllerServiceMock: ControllerService = {
-//   availableProgs$: of({ : 'controller', x: 0, y: 0, z: 0, freezeX: false, freezeY: false, slow: false })
+// const programServiceMock: ControllerService = {
+//   availableProgs$: of({ : 'program', x: 0, y: 0, z: 0, freezeX: false, freezeY: false, slow: false })
 // }
 
 export const programService = {
-  live: controllerServiceLive
-  // mock: controllerServiceMock
+  live: programServiceLive
+  // mock: programServiceMock
 }

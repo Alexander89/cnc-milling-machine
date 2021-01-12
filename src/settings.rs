@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::{env, fs};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MotorSettings {
     pub max_step_speed: u32,
     pub pull_gpio: u8,
@@ -16,6 +17,7 @@ pub struct MotorSettings {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Settings {
     pub dev_mode: bool,
     pub motor_x: MotorSettings,
@@ -95,5 +97,9 @@ impl Settings {
             }
         }
         settings
+    }
+    pub fn write_to_file(&self, file_path: &str) -> Result<(), String> {
+        let data = serde_yaml::to_string(self).unwrap();
+        fs::write(file_path, data).map_err(|e| format!("{:?}", e))
     }
 }

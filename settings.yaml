@@ -1,38 +1,34 @@
 ---
-dev_mode: false
-motor_x:
-  max_step_speed: 200
-  pull_gpio: 18
-  dir_gpio: 27
-  ena_gpio: ~
-  end_left_gpio: 21
-  end_right_gpio: 20
-  step_size: 0.004
-motor_y:
-  max_step_speed: 200
-  pull_gpio: 22
-  dir_gpio: 23
-  ena_gpio: ~
-  end_left_gpio: 19
-  end_right_gpio: 26
-  step_size: 0.004
-motor_z:
-  max_step_speed: 200
-  pull_gpio: 25
-  dir_gpio: 24
-  ena_gpio: ~
-  end_left_gpio: 5
-  end_right_gpio: 6
-  step_size: 0.004
-calibrate_z_gpio: 16
-input_dir:
+devMode: true
+motorX:
+  maxStepSpeed: 200
+  pullGpio: 18
+  dirGpio: 27
+  endLeftGpio: 21
+  endRightGpio: 20
+  stepSize: 0.004
+motorY:
+  maxStepSpeed: 200
+  pullGpio: 22
+  dirGpio: 23
+  endLeftGpio: 19
+  endRightGpio: 26
+  stepSize: 0.004
+motorZ:
+  maxStepSpeed: 200
+  pullGpio: 25
+  dirGpio: 24
+  endLeftGpio: 5
+  endRightGpio: 6
+  stepSize: 0.004
+calibrateZGpio: 16
+inputDir:
   - "."
-  - "/home/alex"
-input_update_reduce: 10
-default_speed: 5.0
-rapid_speed: 50.0
+  - /home/alex
+inputUpdateReduce: 10
+defaultSpeed: 5.0
+rapidSpeed: 50.0
 scale: 1.0
-invert_z: false
-show_console_output: true
-console_pos_update_reduce: 50
-message_lvl: info
+invertZ: false
+showConsoleOutput: false
+consolePosUpdateReduce: 50

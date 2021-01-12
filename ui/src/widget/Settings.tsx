@@ -1,70 +1,122 @@
 // eslint-disable-next-line no-use-before-define
 import * as React from 'react'
 import { useContext, useState } from 'react'
-import { createUseStyles } from 'react-jss'
 import { Button } from '../components/Button'
-import { ToggleButton } from '../components/ToggleButton'
+import { InputField, ToggleField } from '../components/form'
+import { Input } from '../components/Input'
 import { AlertCtx, obs, ServiceCtx } from '../services'
+import { Runtime } from '../services/settings'
 import { useWidgetStyle } from './style'
 
 export const Settings = () => {
-  const [programName, setProgramName] = useState<string>()
-  const [program, setProgram] = useState<string>()
-  const [invertZ, setInvertZ] = useState(false)
-  const [scale, setScale] = useState(1)
-  const { card, header } = useWidgetStyle()
-  const { progEditor } = useStyle()
+  const [settings, setSettings] = useState<Runtime | undefined>()
+  const { cardStretch, header, content } = useWidgetStyle()
   const service = useContext(ServiceCtx)
   const { publish } = useContext(AlertCtx)
 
-  obs('loadProg$', p => {
-    setProgram(p?.program)
-    setProgramName(p?.programName)
-    setInvertZ(p?.invertZ || false)
-    setScale(p?.scale || 1)
-  })
-  obs('startProg$', s => publish({ message: `Program ${s.programName} started` }))
+  obs('runtime$', p => setSettings(p))
+  obs('runtimeSaved$', res => publish({ message: res.ok ? 'Settings are applied' : 'Apply settings failed' }))
 
-  const start = () => programName && service?.sendCommand({ cmd: 'program', action: 'start', programName, invertZ, scale })
-  const save = () => programName && program && service?.sendCommand({ cmd: 'program', action: 'save', programName, program })
-  const deleteProg = () => programName && service?.sendCommand({ cmd: 'program', action: 'delete', programName })
+  const reload = () => service?.sendCommand({ cmd: 'settings', action: 'getRuntime' })
+  const save = () => settings && service?.sendCommand({ cmd: 'settings', action: 'setRuntime', ...settings })
+
+  React.useEffect(() => {
+    reload()
+  }, [])
 
   return (
-    <div className={card} style={{ width: 550 }}>
-      <div className={header} style={{ display: 'flex' }}>
-        Program: {programName || ''}
+    <div className={cardStretch} style={{ width: 750 }}>
+      <div className={header}>
+        Runtime settings
       </div>
-      <div>
+      <div className={content} >
+        {(settings && (<>
+          <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+            Input directories  (.)
+            <div>
+              <Input
+                value={settings.inputDir?.join(',') || ''}
+                onChanged={value => setSettings({
+                  ...settings,
+                  inputDir: value.split(',').map(s => s.trim())
+                })}
+              />
+            </div>
+          </div>
+          <InputField
+            type="number"
+            title="default speed movement (5 mm/s)"
+            value={settings.inputUpdateReduce}
+            defaultValue={5}
+            onChanged={value => setSettings({
+              ...settings,
+              defaultSpeed: value
+            })}
+          />
+          <InputField
+            type="number"
+            title="Default rapid speed movement (50 mm/s)"
+            value={settings.rapidSpeed}
+            defaultValue={50}
+            onChanged={value => setSettings({
+              ...settings,
+              rapidSpeed: value
+            })}
+          />
+          <InputField
+            type="number"
+            title="default object scale (1.0)"
+            value={settings.scale}
+            defaultValue={1}
+            onChanged={value => setSettings({
+              ...settings,
+              scale: value
+            })}
+          />
+          <ToggleField
+            title="Invert Z in programs by default"
+            value={settings.invertZ}
+            defaultValue={false}
+            onChanged={value => setSettings({
+              ...settings,
+              invertZ: value
+            })}
+          />
+          <ToggleField
+            title="Show system output on console"
+            value={settings.showConsoleOutput}
+            defaultValue={false}
+            onChanged={value => setSettings({
+              ...settings,
+              showConsoleOutput: value
+            })}
+          />
+          <InputField
+            type="number"
+            title="Input update reduce (10)"
+            value={settings.inputUpdateReduce}
+            defaultValue={10}
+            onChanged={value => setSettings({
+              ...settings,
+              inputUpdateReduce: value
+            })}
+          />
+          <InputField
+            type="number"
+            title="Console position update reduce (50)"
+            value={settings.consolePosUpdateReduce}
+            defaultValue={50}
+            onChanged={value => setSettings({
+              ...settings,
+              consolePosUpdateReduce: value
+            })}
+          />
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <Button onClick={reload}>Reload</Button>
+              <Button onClick={save}>Save</Button>
+          </div>
+        </>)) || 'loading'}
       </div>
-      <div className={progEditor}>
-        {program ? <textarea style={{ width: '100%', height: '100%' }} value={program} onChange={e => e.target.value !== program} /> : 'select Program'}
-      </div>
-      {program && (<>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <ToggleButton onClick={setInvertZ} value={invertZ}>Invert-Z</ToggleButton>
-          <div></div>
-          <div></div>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <Button onClick={start}>start</Button>
-            <Button onClick={save}>save</Button>
-            <Button onClick={deleteProg}>delete</Button>
-        </div>
-      </>)}
     </div>
   )
 }
-
-const useStyle = createUseStyles({
-  progEditor: {
-    fontSize: '1.4em',
-    lineHeight: '1.8em',
-    backgroundColor: 'white',
-    margin: '10px 0px',
-    height: '45vh',
-    overflow: 'auto',
-    '& > div': {
-      padding: 10
-    }
-  }
-})

@@ -4,7 +4,7 @@ import { createUseStyles } from 'react-jss'
 
 type Props = {
   width?: string | number
-  value: string
+  value: string | number
   onChanged: (value: string) => void
   onBlur?: (value: string) => void
 }
@@ -23,6 +23,7 @@ export const Input = ({ width, value, onChanged, onBlur }: Props) => {
 const useStyle = createUseStyles({
   inputStyle: {
     '& > input': {
+      width: 180,
       fontSize: '24px !important',
       backgroundColor: '#f0f0f0',
       border: 'none',

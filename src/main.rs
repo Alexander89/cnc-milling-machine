@@ -13,8 +13,9 @@ use crate::types::{Location, MachineState};
 use crate::ui::{
     types::{
         InfoLvl, Mode, ProgramInfo, WsAvailableProgramsMessage, WsCommandController,
-        WsCommandProgram, WsCommands, WsCommandsFrom, WsControllerMessage, WsInfoMessage,
-        WsMessages, WsPositionMessage, WsReplyMessage, WsStatusMessage,
+        WsCommandProgram, WsCommandSettings, WsCommands, WsCommandsFrom, WsControllerMessage,
+        WsInfoMessage, WsMessages, WsPositionMessage, WsReplyMessage, WsStatusMessage,
+        WsCommandSettingsSetRuntimeSettings, WsCommandSettingsSetSystemSettings
     },
     ui_main,
 };
@@ -32,6 +33,8 @@ use std::{
     time::Duration,
 };
 use uuid::Uuid;
+
+const SETTINGS_PATH: &'static str = "./settings.yaml";
 
 struct App {
     pub available_progs: Vec<String>,
@@ -59,7 +62,7 @@ struct App {
 impl App {
     fn start() {
         let pool = ThreadPool::new().expect("Failed to build pool");
-        let settings = Settings::from_file("./settings.yaml");
+        let settings = Settings::from_file(SETTINGS_PATH);
 
         let gilrs = Gilrs::new()
             .map_err(|_| "gamepad not valid")
@@ -225,6 +228,10 @@ impl App {
 
                 'watch: loop {
                     if let Ok(p) = receiver_path_changed.try_recv() {
+                        println!("receive new Path {:?}", p);
+                        for path in path_vec.iter() {
+                            watcher.unwatch(path).unwrap();
+                        }
                         path_vec = p;
                         break 'watch;
                     };
@@ -256,15 +263,12 @@ impl App {
                         }
                     }
                 }
-                for path in path_vec.iter() {
-                    watcher.unwatch(path).unwrap();
-                }
             }
         });
         (send_path_changed, receiver_new_progs)
     }
     fn run(&mut self, data_receiver: Receiver<WsMessages>, cmd_sender: Sender<WsCommandsFrom>) {
-        let (_update_path, new_progs) = self.start_file_watcher();
+        let (update_path, new_progs) = self.start_file_watcher();
 
         // create Http-Server for the UI
         let pos_msg = WsPositionMessage::new(0.0f64, 0.0f64, 0.0f64);
@@ -412,7 +416,25 @@ impl App {
                             remove_file(program_name).is_ok(),
                         );
                     }
-                    _ => (),
+                    WsCommands::Settings(WsCommandSettings::GetRuntime) => {
+                        self.send_runtime_settings_reply_message(uuid);
+                    }
+                    WsCommands::Settings(WsCommandSettings::SetRuntime( settings )) => {
+                        match self.set_runtime_settings(settings, &update_path) {
+                            Ok(()) => self.send_runtime_settings_saved_reply_message(uuid, true),
+                            Err(_) => self.send_runtime_settings_saved_reply_message(uuid, false),
+                        };
+                    }
+                    WsCommands::Settings(WsCommandSettings::GetSystem) => {
+                        self.send_system_settings_reply_message(uuid);
+                    }
+                    WsCommands::Settings(WsCommandSettings::SetSystem( settings )) => {
+                        match self.set_system_settings(settings) {
+                            Ok(()) => self.send_system_settings_saved_reply_message(uuid, true),
+                            Err(_) => self.send_system_settings_saved_reply_message(uuid, false),
+                        };
+                    }
+                    //_ => (),
                 };
             }
         }
@@ -431,6 +453,30 @@ impl App {
     pub fn set_selected_program(&mut self, selected_program: Option<String>) {
         self.selected_program = selected_program;
         self.send_status_msg();
+    }
+    pub fn set_runtime_settings(&mut self, settings: WsCommandSettingsSetRuntimeSettings, update_path: &mpsc::Sender<Vec<String>>) -> Result<(), String> {
+        settings.input_dir.map(|v| {
+            self.settings.input_dir = v.clone();
+            update_path.send(v)
+        });
+        settings.input_update_reduce.map(|v| self.settings.input_update_reduce = v);
+        settings.default_speed.map(|v| self.settings.default_speed = v);
+        settings.rapid_speed.map(|v| self.settings.rapid_speed = v);
+        settings.scale.map(|v| self.settings.scale = v);
+        settings.invert_z.map(|v| self.settings.invert_z = v);
+        settings.show_console_output.map(|v| self.settings.show_console_output = v);
+        settings.console_pos_update_reduce.map(|v| self.settings.console_pos_update_reduce = v);
+
+        self.settings.write_to_file(SETTINGS_PATH)
+    }
+    pub fn set_system_settings(&mut self, settings: WsCommandSettingsSetSystemSettings) -> Result<(), String> {
+        self.settings.dev_mode = settings.dev_mode;
+        self.settings.motor_x = settings.motor_x;
+        self.settings.motor_y = settings.motor_y;
+        self.settings.motor_z = settings.motor_z;
+        self.settings.calibrate_z_gpio = settings.calibrate_z_gpio;
+
+        self.settings.write_to_file(SETTINGS_PATH)
     }
 }
 
@@ -534,6 +580,54 @@ impl App {
             .send(WsMessages::Reply {
                 to,
                 msg: WsReplyMessage::DeleteProgram { ok, program_name },
+            })
+            .unwrap();
+    }
+    pub fn send_runtime_settings_reply_message(&self, to: Uuid) {
+        self.ui_data_sender
+            .send(WsMessages::Reply {
+                to,
+                msg: WsReplyMessage::RuntimeSettings {
+                    input_dir: self.settings.input_dir.to_owned(),
+                    input_update_reduce: self.settings.input_update_reduce,
+                    default_speed: self.settings.default_speed,
+                    rapid_speed: self.settings.rapid_speed,
+                    scale: self.settings.scale,
+                    invert_z: self.settings.invert_z,
+                    show_console_output: self.settings.show_console_output,
+                    console_pos_update_reduce: self.settings.console_pos_update_reduce,
+                },
+            })
+            .unwrap();
+    }
+    pub fn send_runtime_settings_saved_reply_message(&self, to: Uuid, ok: bool) {
+        self.ui_data_sender
+            .send(WsMessages::Reply {
+                to,
+                msg: WsReplyMessage::RuntimeSettingsSaved{ ok },
+            })
+            .unwrap();
+    }
+
+    pub fn send_system_settings_reply_message(&self, to: Uuid) {
+        self.ui_data_sender
+            .send(WsMessages::Reply {
+                to,
+                msg: WsReplyMessage::SystemSettings {
+                    dev_mode: self.settings.dev_mode,
+                    motor_x: self.settings.motor_x.clone(),
+                    motor_y: self.settings.motor_y.clone(),
+                    motor_z: self.settings.motor_z.clone(),
+                    calibrate_z_gpio: self.settings.calibrate_z_gpio.clone(),
+                },
+            })
+            .unwrap();
+    }
+    pub fn send_system_settings_saved_reply_message(&self, to: Uuid, ok: bool) {
+        self.ui_data_sender
+            .send(WsMessages::Reply {
+                to,
+                msg: WsReplyMessage::SystemSettingsSaved{ ok },
             })
             .unwrap();
     }

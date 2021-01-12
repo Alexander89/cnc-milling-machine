@@ -4,12 +4,13 @@ import { CncCommand } from './types'
 import { broadcastService, BroadcastService } from './broadcast'
 import { Observable, OperatorFunction, Subject } from 'rxjs'
 import { programService, ProgramService } from './program'
+import { SettingsService, settingsService } from './settings'
 
 export * from './broadcast'
 export * from './controller'
 export * from './types'
 
-type Services = BroadcastService & ControllerService & ProgramService
+type Services = BroadcastService & ControllerService & ProgramService & SettingsService
 export type Service = {
   sendCommand: (cmd: CncCommand) => void
 } & Services
@@ -29,7 +30,8 @@ export const mkServiceCtx = (ws: WebSocket): Service => ({
   },
   ...broadcastService.live(ws),
   ...controllerService.live(ws),
-  ...programService.live(ws)
+  ...programService.live(ws),
+  ...settingsService.live(ws)
 })
 
 export type AlertMsg = {

@@ -26,6 +26,7 @@ const useStyle = createUseStyles({
     adjustContent: 'center',
     textAlign: 'center',
     padding: '5px 10px',
+    cursor: 'pointer',
     margin: 5
   },
   toggleStyleActive: {

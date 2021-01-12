@@ -110,7 +110,9 @@ impl Handler<WsMessages> for WsConnection {
     type Result = ();
 
     fn handle(&mut self, msg: WsMessages, ctx: &mut Self::Context) {
-        let msg = serde_json::to_string(&msg).unwrap();
-        ctx.text(&msg);
+        match serde_json::to_string(&msg) {
+            Ok(msg) => ctx.text(&msg),
+            Err(e) => println!("failed to parse network-package {:?}", e),
+        };
     }
 }

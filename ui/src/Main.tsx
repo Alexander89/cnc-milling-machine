@@ -10,12 +10,12 @@ import { Mode } from './types'
 import { MainView } from './views/MainView'
 import { ProgramView } from './views/ProgramView'
 import { SettingsView } from './views/SettingsView'
-import { SystemView } from './views/SystemView'
+import { CalibrateView } from './views/CalibrateView'
 
 export const Main = () => {
   const { main } = useStyle()
   const [service, setService] = useState<Service>()
-  const [mode, setMode] = useState<Mode>('program')
+  const [mode, setMode] = useState<Mode>('main')
   useEffect(() => {
     const ws = new WebSocket(`ws://${window.location.hostname}:1506/ws`)
     ws.onopen = _ => setService(mkServiceCtx(ws))
@@ -29,8 +29,8 @@ export const Main = () => {
         return <ProgramView />
       case 'settings':
         return <SettingsView />
-      case 'system':
-        return <SystemView />
+      case 'calibrate':
+        return <CalibrateView />
       default:
         return <></>
     }

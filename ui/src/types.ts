@@ -1,1 +1,1 @@
-export type Mode = 'main' | 'program' | 'settings' | 'system'
+export type Mode = 'main' | 'program' | 'calibrate' | 'settings' | 'system'

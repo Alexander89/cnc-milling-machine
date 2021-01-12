@@ -2,6 +2,7 @@
 import React, { useState } from 'react'
 import { obs, StatusMessage } from '../services'
 import { Settings } from '../widget/Settings'
+import { System } from '../widget/System'
 import { useViewStyle } from './style'
 
 export const SettingsView = () => {
@@ -16,6 +17,7 @@ export const SettingsView = () => {
     <div className={cardBox}>
       <div>
         <Settings />
+        <System />
       </div>
     </div>
   </div>

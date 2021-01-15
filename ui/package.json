@@ -6,11 +6,11 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "s_prestart": "tsc --noEmit",
-    "start": "parcel src/index.html",
-    "build": "npm run monaco:build:release && parcel build src/index.html",
+    "start": "parcel --host 0.0.0.0 --out-dir dist/debug src/index.html",
+    "build": "npm run monaco:build:release && parcel build --out-dir ../static src/index.html",
     "lint": "eslint ./src/**/* --fix",
-    "monaco:build:debug": "npm run monaco:build-json build/diff/debug && npm run monaco:build-worker build/diff/debug",
-    "monaco:build:release": "npm run monaco:build-json dist && npm run monaco:build-worker dist",
+    "monaco:build:debug": "npm run monaco:build-json dist/debug && npm run monaco:build-worker dist/debug",
+    "monaco:build:release": "npm run monaco:build-json ../static && npm run monaco:build-worker ../static",
     "monaco:build-json": "parcel build node_modules/monaco-editor/esm/vs/language/json/json.worker.js --no-source-maps --out-dir ",
     "monaco:build-worker": "parcel build node_modules/monaco-editor/esm/vs/editor/editor.worker.js --no-source-maps --out-dir "
   },

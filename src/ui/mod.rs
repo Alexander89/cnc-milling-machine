@@ -44,7 +44,7 @@ pub async fn ui_main(
             .service(web_socket)
             .service(Files::new("/", "./static").index_file("index.html").show_files_listing())
     })
-    .bind("127.0.0.1:1506")?
+    .bind("0.0.0.0:1506")?
     .run()
     .await
 }

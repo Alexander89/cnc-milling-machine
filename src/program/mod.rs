@@ -55,6 +55,18 @@ impl Program {
             rapid_speed,
         })
     }
+
+    pub fn len(&self) -> usize {
+        let mut current_step = 0usize;
+        let mut count = 0usize;
+        while let Some(step) = self.codes.get(current_step) {
+            current_step += 1;
+            if Mnemonic::General == step.mnemonic() {
+                count += 1;
+            }
+        }
+        count
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -70,13 +82,13 @@ pub struct Next3dMovement {
     pub move_type: MoveType,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum NextMiscellaneous {
     SwitchOn,
     SwitchOff,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum NextInstruction {
     Movement(Next3dMovement),
     Miscellaneous(NextMiscellaneous),
@@ -264,7 +276,6 @@ impl Program {
             },
         }
     }
-
     fn rel_pos(&self, x: Option<f32>, y: Option<f32>, z: Option<f32>) -> Location<f64> {
         Location {
             x: self.get_or_default(x, 0.0, false),

@@ -102,6 +102,8 @@ pub struct WsStatusMessage {
     pub in_opp: bool,
     pub current_prog: Option<String>,
     pub calibrated: bool,
+    pub steps_todo: i64,
+    pub steps_done: i64,
 }
 impl WsStatusMessage {
     pub fn new(
@@ -110,6 +112,8 @@ impl WsStatusMessage {
         in_opp: bool,
         current_prog: Option<String>,
         calibrated: bool,
+        steps_todo: i64,
+        steps_done: i64,
     ) -> WsStatusMessage {
         WsStatusMessage {
             mode,
@@ -117,6 +121,8 @@ impl WsStatusMessage {
             in_opp,
             current_prog,
             calibrated,
+            steps_todo,
+            steps_done,
         }
     }
 }

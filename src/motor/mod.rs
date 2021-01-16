@@ -13,7 +13,7 @@ use std::{
     result,
     sync::Mutex,
     sync::{
-        atomic::{AtomicBool, AtomicI64, AtomicU32, Ordering::Relaxed},
+        atomic::{AtomicBool, AtomicI64, AtomicU32, AtomicI32, Ordering::Relaxed},
         mpsc::{channel, Receiver, Sender},
         Arc,
     },
@@ -206,6 +206,8 @@ struct MotorControllerThread {
     current_location: Location<f64>,
     cancel_task: Arc<AtomicBool>,
     state: Arc<AtomicU32>,
+    steps_todo: Arc<AtomicI32>,
+    steps_done: Arc<AtomicI32>,
     task_query: Arc<Mutex<Vec<Task>>>,
     manual_task_receiver: Receiver<ManualTask>,
 }
@@ -245,7 +247,9 @@ impl MotorControllerThread {
             if self.cancel_task.load(Relaxed) {
                 self.cancel_task.store(false, Relaxed);
                 self.current_task = None;
-                println!("cancle task");
+                self.steps_todo.store(0, Relaxed);
+                self.steps_done.store(0, Relaxed);
+                println!("MotorControllerThread: cancel task");
             };
             match &self.current_task {
                 Some(InnerTask::Production(InnerTaskProduction {
@@ -492,6 +496,9 @@ impl MotorControllerThread {
                         let next = lock[q_ptr].clone();
                         q_ptr += 1;
                         self.state.store(next.machine_state().into(), Relaxed);
+                        self.steps_done.store(q_ptr as i32, Relaxed);
+                        self.steps_todo.store((lock.len() - q_ptr) as i32, Relaxed);
+                        println!("next {:?} {:?}", q_ptr, lock.len() - q_ptr);
                         self.current_task = Some(InnerTask::from_task(
                             next,
                             self.get_pos(),
@@ -534,6 +541,8 @@ pub struct MotorController {
     task_query: Arc<Mutex<Vec<Task>>>,
     manual_task_sender: Sender<ManualTask>,
     step_sizes: Location<f64>,
+    steps_todo: Arc<AtomicI32>,
+    steps_done: Arc<AtomicI32>,
     x: Arc<AtomicI64>,
     y: Arc<AtomicI64>,
     z: Arc<AtomicI64>,
@@ -548,6 +557,8 @@ impl MotorController {
     ) -> Self {
         let cancel_task = Arc::new(AtomicBool::new(false));
         let state = Arc::new(AtomicU32::new(0));
+        let steps_todo = Arc::new(AtomicI32::new(0));
+        let steps_done = Arc::new(AtomicI32::new(0));
 
         let task_query = Arc::new(Mutex::new(Vec::new()));
         let step_sizes = Location {
@@ -561,6 +572,8 @@ impl MotorController {
         let y = motor_y.get_pos_ref();
         let z = motor_z.get_pos_ref();
         let state_inner = state.clone();
+        let steps_todo_inner = steps_todo.clone();
+        let steps_done_inner = steps_done.clone();
         let cancel_task_inner = cancel_task.clone();
         let task_query_inner = task_query.clone();
         let thread = std::thread::spawn(move || {
@@ -575,6 +588,8 @@ impl MotorController {
                 current_task: None,
                 current_location: Location::default(),
                 state: state_inner,
+                steps_todo: steps_todo_inner,
+                steps_done: steps_done_inner,
                 cancel_task: cancel_task_inner,
                 task_query: task_query_inner,
                 manual_task_receiver: receive_manual_task,
@@ -586,6 +601,8 @@ impl MotorController {
         MotorController {
             thread,
             state,
+            steps_todo,
+            steps_done,
             cancel_task,
             step_sizes,
             x,
@@ -604,9 +621,17 @@ impl MotorController {
             .unwrap()
             .push(Task::Calibrate(x, y, z));
     }
+
     pub fn get_state(&self) -> MachineState {
         self.state.load(Relaxed).into()
     }
+    pub fn get_steps_todo(&self) -> i64 {
+        self.steps_todo.load(Relaxed).into()
+    }
+    pub fn get_steps_done(&self) -> i64 {
+        self.steps_done.load(Relaxed).into()
+    }
+
     pub fn manual_move(&mut self, x: f64, y: f64, z: f64, speed: f64) {
         if self
             .manual_task_sender

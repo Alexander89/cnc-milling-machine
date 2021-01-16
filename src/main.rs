@@ -57,6 +57,8 @@ struct App {
     pub freeze_y: bool,
     pub slow_control: bool,
     pub display_counter: u32,
+    pub steps_todo: i64,
+    pub steps_done: i64,
 }
 
 impl App {
@@ -94,6 +96,8 @@ impl App {
             input_reduce: 0,
             last_control: Location::default(),
             display_counter: 0,
+            steps_todo: 0,
+            steps_done: 0,
             freeze_x: false,
             freeze_y: false,
             slow_control: false,
@@ -211,7 +215,6 @@ impl App {
             (match_count != available_progs.len(), new_content)
         }
     }
-
     fn start_file_watcher(&mut self) -> (mpsc::Sender<Vec<String>>, mpsc::Receiver<Vec<String>>) {
         let (send_path_changed, receiver_path_changed) = mpsc::channel::<Vec<String>>();
         let (send_new_progs, receiver_new_progs) = mpsc::channel::<Vec<String>>();
@@ -286,7 +289,7 @@ impl App {
         });
 
         // initial output
-        println!("rusty cnc controller started\n access the UI with http://localhost:1706");
+        println!("rusty cnc controller started\n access the UI with http://localhost:1506");
         if self.settings.show_console_output {
             println!("Found programs in you input_path:");
             for (i, p) in self.available_progs.iter().enumerate() {
@@ -442,6 +445,13 @@ impl App {
 }
 
 impl App {
+    pub fn set_prog_state(&mut self, todo: i64, done: i64) {
+        if self.steps_todo != todo || self.steps_done != done {
+            self.steps_todo = todo;
+            self.steps_done = done;
+            self.send_status_msg();
+        }
+    }
     pub fn set_current_mode(&mut self, mode: Mode) {
         self.current_mode = mode;
         self.send_status_msg();
@@ -488,6 +498,8 @@ impl App {
             self.in_opp.clone(),
             self.selected_program.clone(),
             self.calibrated.clone(),
+            self.steps_todo,
+            self.steps_done,
         )
     }
     pub fn send_status_msg(&self) {
@@ -608,7 +620,6 @@ impl App {
             })
             .unwrap();
     }
-
     pub fn send_system_settings_reply_message(&self, to: Uuid) {
         self.ui_data_sender
             .send(WsMessages::Reply {
@@ -631,7 +642,6 @@ impl App {
             })
             .unwrap();
     }
-
     pub fn get_pos_msg(pos: &Location<f64>) -> WsPositionMessage {
         WsPositionMessage::new(pos.x, pos.y, pos.z)
     }
@@ -680,7 +690,7 @@ impl App {
         self.input_reduce = 0;
 
         let mut control = self.last_control.clone();
-        let speed = if self.slow_control { 1.0f64 } else { 10.0f64 };
+        let speed = if self.slow_control { 2.5f64 } else { 10.0f64 };
         // map GamePad events to update the manual program or start a program
         while let Some(Event { event, .. }) = self.gilrs.next_event() {
             match event {
@@ -697,6 +707,7 @@ impl App {
                         if let Ok(load_prog) =
                             Program::new(sel_prog, 5.0, 50.0, 1.0, self.cnc.get_pos(), false)
                         {
+                            println!("commands found {:?}", load_prog.len());
                             self.prog = Some(load_prog);
                             self.set_current_mode(Mode::Program);
                         } else {
@@ -820,26 +831,28 @@ impl App {
                 };
             }
         }
-        let p = self.prog.clone();
-        self.prog = None;
-        if let Some(prog) = p {
+        if let Some(ref mut prog) = self.prog {
             for next_instruction in prog {
                 match next_instruction {
                     NextInstruction::Movement(next_movement) => {
                         self.cnc.query_task(next_movement);
                     }
                     NextInstruction::Miscellaneous(task) => {
-                        self.info(format!("Miscellaneous {:?}", task));
+                        println!("Miscellaneous {:?}", task);
+                        //self.info(format!("Miscellaneous {:?}", task));
                     }
                     NextInstruction::NotSupported(err) => {
-                        self.warning(format!("NotSupported {:?}", err));
+                        println!("NotSupported {:?}", err);
+                        //self.warning(format!("NotSupported {:?}", err));
                     }
                     NextInstruction::InternalInstruction(err) => {
-                        self.info(format!("InternalInstruction {:?}", err));
+                        println!("InternalInstruction {:?}", err);
+                        //self.info(format!("InternalInstruction {:?}", err));
                     }
                     _ => {}
                 };
             }
+
             match (self.cnc.get_state(), self.in_opp) {
                 (MachineState::Idle, true) => {
                     self.set_current_mode(Mode::Manual);
@@ -852,6 +865,8 @@ impl App {
                 _ => (),
             }
         }
+
+        self.set_prog_state(self.cnc.get_steps_todo(), self.cnc.get_steps_done());
 
         true
     }
@@ -898,6 +913,7 @@ impl App {
             self.cnc.get_pos(),
             invert_z,
         ) {
+            println!("commands found {:?}", load_prog.len());
             self.prog = Some(load_prog);
             self.set_current_mode(Mode::Program);
             true

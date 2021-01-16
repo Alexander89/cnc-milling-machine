@@ -32,6 +32,10 @@ export const Mode = () => {
           <div className={row} style={{ justifyContent: 'space-around' }}>
             <div style={{ width: '350px' }}><Button onClick={cancel}>Cancel</Button></div>
           </div>
+          <div className={row}>
+            <div className={modeValue}>Todo <div style={{ marginTop: 10 }}>{status.stepsTodo || '---'}</div></div>
+            <div className={modeValue}>Done <div style={{ marginTop: 10 }}>{status.stepsDone || '---'}</div></div>
+          </div>
         </>
       )}
     </div>

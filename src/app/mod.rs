@@ -7,12 +7,7 @@ use crate::io::{Actor, Switch};
 use crate::motor::{motor_controller::MotorController, MockMotor, Motor, StepMotor};
 use crate::program::Program;
 use crate::types::Location;
-use crate::ui::{
-    types::{
-        Mode, WsCommandsFrom,
-        WsMessages,
-    },
-};
+use crate::ui::types::{Mode, WsCommandsFrom, WsMessages};
 
 use settings::Settings;
 
@@ -21,11 +16,7 @@ use futures::executor::ThreadPool;
 use gilrs::Gilrs;
 use notify::{raw_watcher, RawEvent, RecursiveMode, Watcher};
 use std::sync::mpsc;
-use std::{
-    fs,
-    thread,
-    time::Duration,
-};
+use std::{fs, thread, time::Duration};
 
 const SETTINGS_PATH: &'static str = "./settings.yaml";
 
@@ -263,5 +254,4 @@ impl App {
         });
         (send_path_changed, receiver_new_progs)
     }
-
 }

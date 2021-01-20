@@ -2,12 +2,144 @@ use super::App;
 
 use crate::types::Location;
 use crate::ui::types::{
-    InfoLvl, ProgramInfo, WsAvailableProgramsMessage, WsControllerMessage, WsInfoMessage,
-    WsMessages, WsPositionMessage, WsReplyMessage, WsStatusMessage,
+    InfoLvl, ProgramInfo, WsAvailableProgramsMessage, WsCommandController, WsCommandProgram,
+    WsCommandSettings, WsCommands, WsCommandsFrom, WsControllerMessage, WsInfoMessage, WsMessages,
+    WsPositionMessage, WsReplyMessage, WsStatusMessage,
 };
-
-use std::{fs::File, io::prelude::*};
+use std::sync::mpsc::Sender;
+use std::{
+    fs::{remove_file, File, OpenOptions},
+    io::prelude::*,
+};
 use uuid::Uuid;
+
+impl App {
+    // handle incoming commands
+    pub fn handle_network_commands(&mut self, update_path: &Sender<Vec<String>>) {
+        if let Ok(WsCommandsFrom(uuid, cmd)) = self.ui_cmd_receiver.try_recv() {
+            match cmd {
+                WsCommands::Controller(WsCommandController::FreezeX { freeze }) => {
+                    if self.freeze_x != freeze {
+                        self.freeze_x = freeze;
+                        self.send_controller_msg();
+                    }
+                }
+                WsCommands::Controller(WsCommandController::FreezeY { freeze }) => {
+                    if self.freeze_y != freeze {
+                        self.freeze_y = freeze;
+                        self.send_controller_msg();
+                    }
+                }
+                WsCommands::Controller(WsCommandController::Slow { slow }) => {
+                    if self.slow_control != slow {
+                        self.slow_control = slow;
+                        self.send_controller_msg();
+                    }
+                }
+                WsCommands::Program(WsCommandProgram::Get) => {
+                    self.send_available_programs_msg(uuid)
+                }
+                WsCommands::Program(WsCommandProgram::Load { program_name }) => {
+                    self.send_program_data_msg(uuid, program_name)
+                }
+                WsCommands::Program(WsCommandProgram::Start {
+                    program_name,
+                    invert_z,
+                    scale,
+                }) => {
+                    if self.start_program(&program_name, invert_z, scale) {
+                        self.send_start_reply_message(uuid, program_name)
+                    }
+                }
+                WsCommands::Program(WsCommandProgram::Cancel) => {
+                    self.cancel_program();
+                    self.send_cancel_reply_message(uuid, true);
+                }
+                WsCommands::Program(WsCommandProgram::Save {
+                    program_name,
+                    program,
+                }) => {
+                    match OpenOptions::new().write(true).create(true).truncate(true).open(program_name.clone()) {
+                        Err(why) => {
+                            self.info(format!("couldn't open {}: {}", program_name, why));
+                            self.send_save_reply_message(uuid, program_name, false);
+                        }
+                        Ok(mut file) => {
+                            println!("save: \n{:?}", program);
+                            match file.write_all(program.as_bytes()) {
+                                Err(why) => {
+                                    self.info(format!(
+                                        "couldn't write to {}: {}",
+                                        program_name, why
+                                    ));
+                                    self.send_save_reply_message(uuid, program_name, false);
+                                }
+                                Ok(_) => self.send_save_reply_message(uuid, program_name, true),
+                            };
+                        }
+                    }
+                    // if Path::new(&program_name).exists() {
+                    //     match File::open(program_name.clone()) {
+                    //         Err(why) => {
+                    //             self.info(format!("couldn't open {}: {}", program_name, why));
+                    //             self.send_save_reply_message(uuid, program_name, false);
+                    //         }
+                    //         Ok(mut file) => {
+                    //             match file.write_all(program.as_bytes()) {
+                    //                 Err(why) => {
+                    //                     self.info(format!(
+                    //                         "couldn't write to {}: {}",
+                    //                         program_name, why
+                    //                     ));
+                    //                     self.send_save_reply_message(uuid, program_name, false);
+                    //                 }
+                    //                 Ok(_) => self.send_save_reply_message(uuid, program_name, true),
+                    //             };
+                    //         }
+                    //     }
+                    // } else {
+                    //     match File::create(&program_name) {
+                    //         Err(why) => {
+                    //             self.info(format!("couldn't write to {}: {}", program_name, why));
+                    //             self.send_save_reply_message(uuid, program_name, true);
+                    //         }
+                    //         Ok(mut file) => self.send_save_reply_message(
+                    //             uuid,
+                    //             program_name,
+                    //             file.write_all(program.as_bytes()).is_ok(),
+                    //         ),
+                    //     }
+                    // }
+                }
+                WsCommands::Program(WsCommandProgram::Delete { program_name }) => {
+                    self.send_delete_reply_message(
+                        uuid,
+                        program_name.clone(),
+                        remove_file(program_name).is_ok(),
+                    );
+                }
+                WsCommands::Settings(WsCommandSettings::GetRuntime) => {
+                    self.send_runtime_settings_reply_message(uuid);
+                }
+                WsCommands::Settings(WsCommandSettings::SetRuntime(settings)) => {
+                    match self.set_runtime_settings(settings, &update_path) {
+                        Ok(()) => self.send_runtime_settings_saved_reply_message(uuid, true),
+                        Err(_) => self.send_runtime_settings_saved_reply_message(uuid, false),
+                    };
+                }
+                WsCommands::Settings(WsCommandSettings::GetSystem) => {
+                    self.send_system_settings_reply_message(uuid);
+                }
+                WsCommands::Settings(WsCommandSettings::SetSystem(settings)) => {
+                    match self.set_system_settings(settings) {
+                        Ok(()) => self.send_system_settings_saved_reply_message(uuid, true),
+                        Err(_) => self.send_system_settings_saved_reply_message(uuid, false),
+                    };
+                } //_ => (),
+            };
+        };
+    }
+}
 
 impl App {
     pub fn get_status_msg(&self) -> WsStatusMessage {

@@ -1,14 +1,14 @@
 mod motor;
 mod program;
 mod settings;
-mod switch;
+mod io;
 mod types;
 mod ui;
 
-use crate::motor::{CalibrateType, MockMotor, Motor, MotorController, StepMotor};
+use crate::motor::{task::CalibrateType, MockMotor, Motor, motor_controller::MotorController, StepMotor};
 use crate::program::{NextInstruction, Program};
 use crate::settings::Settings;
-use crate::switch::Switch;
+use crate::io::{Switch, Actor};
 use crate::types::{Location, MachineState};
 use crate::ui::{
     types::{
@@ -105,8 +105,9 @@ impl App {
         app.run(ui_data_receiver, ui_cmd_sender);
     }
     fn create_cnc_from_settings(settings: &Settings) -> MotorController {
-        let (z_calibrate, motor_x, motor_y, motor_z) = if settings.dev_mode {
+        let (on_off, z_calibrate, motor_x, motor_y, motor_z) = if settings.dev_mode {
             (
+                None,
                 None,
                 Motor::new(
                     "x".to_string(),
@@ -126,11 +127,8 @@ impl App {
             )
         } else {
             (
-                if let Some(pin) = settings.calibrate_z_gpio {
-                    Some(Switch::new(pin, false))
-                } else {
-                    None
-                },
+                settings.on_off_gpio.map(|pin| Actor::new(pin, false, false)),  // don't invert and start switched off
+                settings.calibrate_z_gpio.map(|pin| Switch::new(pin, false)),
                 Motor::new(
                     "x".to_string(),
                     settings.motor_x.max_step_speed,
@@ -174,7 +172,7 @@ impl App {
         };
 
         // create cnc MotorController
-        MotorController::new(motor_x, motor_y, motor_z, z_calibrate)
+        MotorController::new(on_off, motor_x, motor_y, motor_z, z_calibrate)
     }
     fn gamepad_connected(gilrs: &Gilrs) -> bool {
         let mut gamepad_found = false;

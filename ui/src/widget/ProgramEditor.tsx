@@ -39,7 +39,7 @@ export const ProgramEditor = () => {
     service.sendCommand({ cmd: 'program', action: 'save', programName: name, program: changedProg })
   }
   const start = () => programName && service?.sendCommand({ cmd: 'program', action: 'start', programName, invertZ, scale })
-  const save = () => programName && program && service?.sendCommand({ cmd: 'program', action: 'save', programName, program })
+  const save = () => programName && changedProg !== undefined && service?.sendCommand({ cmd: 'program', action: 'save', programName, program: changedProg })
   const deleteProg = () => programName && service?.sendCommand({ cmd: 'program', action: 'delete', programName })
 
   const addNew = () => {

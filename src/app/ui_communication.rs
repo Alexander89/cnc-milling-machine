@@ -65,7 +65,6 @@ impl App {
                             self.send_save_reply_message(uuid, program_name, false);
                         }
                         Ok(mut file) => {
-                            println!("save: \n{:?}", program);
                             match file.write_all(program.as_bytes()) {
                                 Err(why) => {
                                     self.info(format!(

@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use rppal::gpio::{Gpio, OutputPin, Level};
+use rppal::gpio::{Gpio, Level, OutputPin};
 
 #[derive(Debug)]
 pub struct Actor {

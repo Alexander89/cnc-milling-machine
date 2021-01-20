@@ -1,16 +1,17 @@
-use super::{task::CalibrateType, motor_controller_thread::MotorControllerThread, Motor};
+use super::{motor_controller_thread::MotorControllerThread, task::CalibrateType, Motor};
 
-use super::{task::{Task, ManualTask}, Result};
-use crate::program::Next3dMovement;
-use crate::io::{Actor, Switch};
-use crate::types::{
-    Location, MachineState,
+use super::{
+    task::{ManualTask, Task},
+    Result,
 };
+use crate::io::{Actor, Switch};
+use crate::program::Next3dMovement;
+use crate::types::{Location, MachineState};
 use std::{
     fmt::Debug,
     sync::Mutex,
     sync::{
-        atomic::{AtomicBool, AtomicI64, AtomicU32, AtomicI32, Ordering::Relaxed},
+        atomic::{AtomicBool, AtomicI32, AtomicI64, AtomicU32, Ordering::Relaxed},
         mpsc::{channel, Sender},
         Arc,
     },
@@ -164,9 +165,9 @@ impl MotorController {
     }
 
     pub fn switch_on(&mut self) {
-        self.on_off.as_mut().map(|actor| actor.set_high() );
+        self.on_off.as_mut().map(|actor| actor.set_high());
     }
     pub fn switch_off(&mut self) {
-        self.on_off.as_mut().map(|actor| actor.set_low() );
+        self.on_off.as_mut().map(|actor| actor.set_low());
     }
 }

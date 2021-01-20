@@ -4,9 +4,9 @@ pub mod ws_connection;
 
 use actix::Addr;
 use actix_cors::Cors;
+use actix_files::Files;
 use actix_web::{get, web::Data, web::Payload, App, Error, HttpRequest, HttpResponse, HttpServer};
 use actix_web_actors::ws;
-use actix_files::Files;
 use crossbeam_channel::{Receiver, Sender};
 use system::System;
 use types::{WsCommandsFrom, WsControllerMessage, WsMessages, WsPositionMessage, WsStatusMessage};
@@ -42,7 +42,11 @@ pub async fn ui_main(
             .wrap(Cors::permissive())
             .data(system.clone())
             .service(web_socket)
-            .service(Files::new("/", "./static").index_file("index.html").show_files_listing())
+            .service(
+                Files::new("/", "./static")
+                    .index_file("index.html")
+                    .show_files_listing(),
+            )
     })
     .bind("0.0.0.0:1506")?
     .run()

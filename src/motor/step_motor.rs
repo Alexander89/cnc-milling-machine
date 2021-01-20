@@ -1,9 +1,8 @@
+use super::{Driver, Result};
 use crate::io::Switch;
 use crate::types::Direction;
 use rppal::gpio::{Gpio, OutputPin};
 use std::fmt::Debug;
-use super::{Driver, Result};
-
 
 #[derive(Debug)]
 pub struct StepMotor {

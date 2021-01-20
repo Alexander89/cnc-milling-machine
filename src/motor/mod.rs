@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 pub mod mock_motor;
-pub mod step_motor;
-pub mod task;
 pub mod motor_controller;
 pub mod motor_controller_thread;
+pub mod step_motor;
+pub mod task;
 
 use crate::types::Direction;
 use log::{max_level, LevelFilter};
@@ -110,5 +110,3 @@ impl Motor {
         self.step_size
     }
 }
-
-

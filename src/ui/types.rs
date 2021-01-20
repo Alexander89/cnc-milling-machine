@@ -1,5 +1,5 @@
-use crate::settings::MotorSettings;
-use crate::Location;
+use crate::app::settings::MotorSettings;
+use crate::types::Location;
 use actix::prelude::{Message, Recipient};
 use serde::{Deserialize, Serialize};
 use std::{fs, time::SystemTime};
@@ -208,7 +208,9 @@ pub enum WsReplyMessage {
         show_console_output: bool,
         console_pos_update_reduce: u32,
     },
-    RuntimeSettingsSaved{ ok: bool },
+    RuntimeSettingsSaved {
+        ok: bool,
+    },
     #[serde(rename_all = "camelCase")]
     SystemSettings {
         dev_mode: bool,
@@ -218,7 +220,9 @@ pub enum WsReplyMessage {
         #[serde(skip_serializing_if = "Option::is_none")]
         calibrate_z_gpio: Option<u8>,
     },
-    SystemSettingsSaved{ ok: bool },
+    SystemSettingsSaved {
+        ok: bool,
+    },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Message)]

@@ -3,10 +3,7 @@ use crate::types::{
     CircleMovement, LinearMovement, Location, MachineState, MoveType, SteppedCircleMovement,
     SteppedLinearMovement, SteppedMoveType,
 };
-use std::{
-    fmt::Debug,
-    time::SystemTime,
-};
+use std::{fmt::Debug, time::SystemTime};
 
 #[derive(Debug)]
 pub struct InnerTaskProduction {

@@ -1,16 +1,17 @@
+use super::task::{
+    CalibrateType, InnerTask, InnerTaskCalibrate, InnerTaskProduction, ManualTask, Task,
+};
 use super::Motor;
-use super::task::{CalibrateType, Task, InnerTaskProduction, InnerTaskCalibrate, InnerTask, ManualTask};
 use crate::io::Switch;
 use crate::types::{
-    CircleDirection, CircleStep, CircleStepCCW, CircleStepCW, CircleStepDir,
-    Direction, Location, MachineState, SteppedCircleMovement,
-    SteppedLinearMovement, SteppedMoveType,
+    CircleDirection, CircleStep, CircleStepCCW, CircleStepCW, CircleStepDir, Direction, Location,
+    MachineState, SteppedCircleMovement, SteppedLinearMovement, SteppedMoveType,
 };
 use std::{
     fmt::Debug,
     sync::Mutex,
     sync::{
-        atomic::{AtomicBool, AtomicI64, AtomicU32, AtomicI32, Ordering::Relaxed},
+        atomic::{AtomicBool, AtomicI32, AtomicI64, AtomicU32, Ordering::Relaxed},
         mpsc::Receiver,
         Arc,
     },
@@ -56,7 +57,7 @@ impl MotorControllerThread {
         steps_done: Arc<AtomicI32>,
         cancel_task: Arc<AtomicBool>,
         task_query: Arc<Mutex<Vec<Task>>>,
-        manual_task_receiver: Receiver<ManualTask>
+        manual_task_receiver: Receiver<ManualTask>,
     ) -> MotorControllerThread {
         MotorControllerThread {
             x_step,

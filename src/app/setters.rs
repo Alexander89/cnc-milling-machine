@@ -64,6 +64,8 @@ impl App {
         self.settings.motor_y = settings.motor_y;
         self.settings.motor_z = settings.motor_z;
         self.settings.calibrate_z_gpio = settings.calibrate_z_gpio;
+        self.settings.on_off_gpio = settings.on_off_gpio;
+        self.settings.switch_on_off_delay = settings.switch_on_off_delay;
 
         self.settings.write_to_file(SETTINGS_PATH)
     }

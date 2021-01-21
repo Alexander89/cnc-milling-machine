@@ -9,6 +9,7 @@ pub struct StepMotor {
     name: String,
     pull: OutputPin,
     direction: OutputPin,
+    invert_dir: bool,
     enable: Option<OutputPin>,
     max_step_speed: u32, // steps per second
     step_pos: i32,       // + - from the reset point
@@ -22,6 +23,7 @@ impl StepMotor {
     pub fn new(
         pull: u8,
         dir: u8,
+        invert_dir: bool,
         ena: Option<u8>,
         end_left: Option<u8>,
         end_right: Option<u8>,
@@ -55,6 +57,7 @@ impl StepMotor {
             name,
             pull: Gpio::new().unwrap().get(pull).unwrap().into_output(),
             direction,
+            invert_dir,
             enable: ena_gpio,
             step_pos: 0i32,
             max_step_speed,
@@ -80,19 +83,12 @@ impl StepMotor {
 impl Driver for StepMotor {
     fn do_step(&mut self, direction: &Direction) -> Result<Direction> {
         if self.current_direction != *direction {
-            match direction {
-                Direction::Left => {
-                    if self.direction.is_set_high() {
-                        self.direction.set_low();
-                        //thread::sleep(Duration::new(0, 3));
-                    }
-                }
-                Direction::Right => {
-                    if self.direction.is_set_low() {
-                        self.direction.set_high();
-                        //thread::sleep(Duration::new(0, 3));
-                    }
-                }
+            match (direction, self.invert_dir, self.direction.is_set_high()) {
+                (Direction::Left, false, true) => self.direction.set_low(),
+                (Direction::Left, true, false) => self.direction.set_high(),
+                (Direction::Right, false, false) => self.direction.set_high(),
+                (Direction::Right, true, true) => self.direction.set_low(),
+                _ => ()
             }
             self.current_direction = direction.clone();
         }

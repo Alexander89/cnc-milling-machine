@@ -12,17 +12,21 @@ export const MainView = () => {
 
   obs('status$', setStatus)
 
-  return <div className={main}>
-    {status && status.devMode && <div className={devModeBanner}>running in dev-mode</div>}
-    <div className={header}>System monitoring / control</div>
-    <div className={cardBox}>
-      <div>
-        <Position />
-        <Controller />
-      </div>
-      <div>
-        <Mode />
+  return (
+    <div className={main}>
+      {status && status.devMode && (
+        <div className={devModeBanner}>running in dev-mode</div>
+      )}
+      <div className={header}>System monitoring / control</div>
+      <div className={cardBox}>
+        <div>
+          <Position />
+          <Controller />
+        </div>
+        <div>
+          <Mode />
+        </div>
       </div>
     </div>
-  </div>
+  )
 }

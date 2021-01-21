@@ -7,6 +7,7 @@ export const motorSettingsC = t.intersection([
     maxStepSpeed: t.number,
     pullGpio: t.number,
     dirGpio: t.number,
+    invertDir: t.boolean,
     stepSize: t.number
   }),
   t.partial({
@@ -23,10 +24,12 @@ export const systemC = t.intersection([
     devMode: t.boolean,
     motorX: motorSettingsC,
     motorY: motorSettingsC,
-    motorZ: motorSettingsC
+    motorZ: motorSettingsC,
+    switchOnOffDelay: t.number
   }),
   t.partial({
-    calibrateZGpio: t.number
+    calibrateZGpio: t.number,
+    onOffGpio: t.number
   })
 ], 'System')
 export type System = t.TypeOf<typeof systemC>
@@ -91,14 +94,13 @@ export type GetSystemSettingsCommand = {
 export type SetSystemSettingsCommand = {
   cmd: 'settings'
   action: 'setSystem'
-  inputDir?: string[]
-  inputUpdateReduce?: number
-  defaultSpeed?: number
-  rapidSpeed?: number
-  scale?: number
-  invertZ?: boolean
-  showConsoleOutput?: boolean
-  consolePosUpdateReduce?: number
+  devMode: boolean,
+  motorX: MotorSettings,
+  motorY: MotorSettings,
+  motorZ: MotorSettings,
+  switchOnOffDelay: number
+  calibrateZGpio?: number,
+  onOffGpio?: number
 }
 export type GetRuntimeSettingsCommand = {
   cmd: 'settings'

@@ -11,13 +11,16 @@ type Props = {
 
 export const Input = ({ width, value, onChanged, onBlur }: Props) => {
   const { inputStyle } = useStyle()
-  return <div className={inputStyle}>
-    <input
-      width={width}
-      value={value}
-      onChange={e => onChanged(e.target.value)}
-      onBlur={e => onBlur && onBlur(e.target.value)} />
-  </div>
+  return (
+    <div className={inputStyle}>
+      <input
+        width={width}
+        value={value}
+        onChange={(e) => onChanged(e.target.value)}
+        onBlur={(e) => onBlur && onBlur(e.target.value)}
+      />
+    </div>
+  )
 }
 
 const useStyle = createUseStyles({

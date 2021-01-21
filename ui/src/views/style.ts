@@ -26,6 +26,5 @@ export const useViewStyle = createUseStyles({
     display: 'flex'
   },
   content: {
-
   }
 })

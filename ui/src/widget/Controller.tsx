@@ -23,22 +23,39 @@ export const Controller = () => {
   return (
     <div className={card}>
       <div className={header} style={{ display: 'flex' }}>
-        <span>Controller</span><span style={{ flex: 1 }}></span> <div style={{ width: 180, display: 'inline-block' }}>
-        {controller && (
-            <ToggleButton
-              value={controller.slow}
-              onClick={setSlow}
-            >
+        <span>Controller</span>
+        <span style={{ flex: 1 }}></span>{' '}
+        <div style={{ width: 180, display: 'inline-block' }}>
+          {controller && (
+            <ToggleButton value={controller.slow} onClick={setSlow}>
               Move Slow
             </ToggleButton>
-        )}
+          )}
         </div>
-        </div>
+      </div>
       {controller && (
         <div className={row}>
-          <div className={posValue}>X<div>{(controller.x * 100).toFixed(controller.slow ? 1 : 0)}%</div><ToggleButton value={controller.freezeX} onClick={setFreeze('freezeX')}>Freeze</ToggleButton></div>
-          <div className={posValue}>Y<div>{(controller.y * 100).toFixed(controller.slow ? 1 : 0)}%</div><ToggleButton value={controller.freezeY} onClick={setFreeze('freezeY')}>Freeze</ToggleButton></div>
-          <div className={posValue}>Z<div>{(controller.z * 100).toFixed(controller.slow ? 1 : 0)}%</div></div>
+          <div className={posValue}>
+            X<div>{(controller.x * 100).toFixed(controller.slow ? 1 : 0)}%</div>
+            <ToggleButton
+              value={controller.freezeX}
+              onClick={setFreeze('freezeX')}
+            >
+              Freeze
+            </ToggleButton>
+          </div>
+          <div className={posValue}>
+            Y<div>{(controller.y * 100).toFixed(controller.slow ? 1 : 0)}%</div>
+            <ToggleButton
+              value={controller.freezeY}
+              onClick={setFreeze('freezeY')}
+            >
+              Freeze
+            </ToggleButton>
+          </div>
+          <div className={posValue}>
+            Z<div>{(controller.z * 100).toFixed(controller.slow ? 1 : 0)}%</div>
+          </div>
         </div>
       )}
     </div>

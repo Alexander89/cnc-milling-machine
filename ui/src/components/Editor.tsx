@@ -12,7 +12,11 @@ type Props = {
 const createEditor = (div: HTMLDivElement, value: string) =>
   monaco.editor.create(div, { value, language: 'gnc' })
 
-const createDiffEditor = (div: HTMLDivElement, original: string, modified: string) => {
+const createDiffEditor = (
+  div: HTMLDivElement,
+  original: string,
+  modified: string
+) => {
   const ed = monaco.editor.createDiffEditor(div)
   ed.setModel({
     original: monaco.editor.createModel(original, 'gnc'),
@@ -75,5 +79,10 @@ export const Editor = ({ style, file, diff, onChanged }: Props) => {
     return () => {}
   }, [file, diff])
 
-  return <div ref={monacoRef} style={{ width: '100%', height: '100%', ...style }}></div>
+  return (
+    <div
+      ref={monacoRef}
+      style={{ width: '100%', height: '100%', ...style }}
+    ></div>
+  )
 }

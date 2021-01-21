@@ -222,6 +222,9 @@ pub enum WsReplyMessage {
         motor_z: MotorSettings,
         #[serde(skip_serializing_if = "Option::is_none")]
         calibrate_z_gpio: Option<u8>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        on_off_gpio: Option<u8>,
+        switch_on_off_delay: f64,
     },
     SystemSettingsSaved {
         ok: bool,
@@ -314,6 +317,9 @@ pub struct WsCommandSettingsSetSystemSettings {
     pub motor_z: MotorSettings,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub calibrate_z_gpio: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub on_off_gpio: Option<u8>,
+    pub switch_on_off_delay: f64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

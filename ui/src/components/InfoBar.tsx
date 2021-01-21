@@ -8,15 +8,26 @@ export const InfoBar = () => {
   const [messages, setMessage] = useState<Array<InfoMessage>>([])
   const { main, header, body } = useStyle()
 
-  // @ts-ignore
-  obs('info$', setMessage, filter(v => v !== undefined), scan<InfoMessage, Array<InfoMessage>>((acc, v) => [v, ...acc], []))
+  obs(
+    'info$',
+    // @ts-ignore
+    setMessage,
+    filter((v) => v !== undefined),
+    scan<InfoMessage, Array<InfoMessage>>((acc, v) => [v, ...acc], [])
+  )
 
-  return <div className={main}>
-    <div className={header}>System info:</div>
-    <div className={body}>
-      {messages.map((msg, idx) => <div key={idx + msg.message}>{msg.lvl}: {msg.message}</div>)}
+  return (
+    <div className={main}>
+      <div className={header}>System info:</div>
+      <div className={body}>
+        {messages.map((msg, idx) => (
+          <div key={idx + msg.message}>
+            {msg.lvl}: {msg.message}
+          </div>
+        ))}
+      </div>
     </div>
-  </div>
+  )
 }
 
 const useStyle = createUseStyles({

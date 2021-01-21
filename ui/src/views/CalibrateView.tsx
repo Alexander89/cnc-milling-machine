@@ -9,13 +9,17 @@ export const CalibrateView = () => {
 
   obs('status$', setStatus)
 
-  return <div className={main}>
-    {status && status.devMode && <div className={devModeBanner}>running in dev-mode</div>}
-    <div className={header} style={{ display: 'block' }}>Calibrate</div>
-    <div className={cardBox}>
-      <div>
-        coming soon
+  return (
+    <div className={main}>
+      {status && status.devMode && (
+        <div className={devModeBanner}>running in dev-mode</div>
+      )}
+      <div className={header} style={{ display: 'block' }}>
+        Calibrate
+      </div>
+      <div className={cardBox}>
+        <div>coming soon</div>
       </div>
     </div>
-  </div>
+  )
 }

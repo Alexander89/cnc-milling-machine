@@ -11,14 +11,18 @@ export const SettingsView = () => {
 
   obs('status$', setStatus)
 
-  return <div className={main}>
-    {status && status.devMode && <div className={devModeBanner}>running in dev-mode</div>}
-    <div className={header}>Settings</div>
-    <div className={cardBox}>
-      <div>
-        <Settings />
-        <System />
+  return (
+    <div className={main}>
+      {status && status.devMode && (
+        <div className={devModeBanner}>running in dev-mode</div>
+      )}
+      <div className={header}>Settings</div>
+      <div className={cardBox}>
+        <div>
+          <Settings />
+          <System />
+        </div>
       </div>
     </div>
-  </div>
+  )
 }

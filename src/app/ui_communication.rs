@@ -262,6 +262,8 @@ impl App {
                     motor_y: self.settings.motor_y.clone(),
                     motor_z: self.settings.motor_z.clone(),
                     calibrate_z_gpio: self.settings.calibrate_z_gpio.clone(),
+                    on_off_gpio: self.settings.on_off_gpio.clone(),
+                    switch_on_off_delay: self.settings.switch_on_off_delay,
                 },
             })
             .unwrap();

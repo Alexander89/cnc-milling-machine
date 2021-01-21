@@ -21,36 +21,46 @@ export const ProgramSelect = () => {
   }, [])
 
   const refresh = () => service?.sendCommand({ cmd: 'program', action: 'get' })
-  const load = (programName: string) => service?.sendCommand({ cmd: 'program', action: 'load', programName })
+  const load = (programName: string) =>
+    service?.sendCommand({ cmd: 'program', action: 'load', programName })
 
   return (
     <div className={cardStretch} style={{ width: 450 }}>
-      <div className={header} style={{ display: 'flex', justifyContent: 'space-between' }}>
+      <div
+        className={header}
+        style={{ display: 'flex', justifyContent: 'space-between' }}
+      >
         Available Programs
         <div style={{ width: 130, display: 'inline-block' }}>
           <Button onClick={refresh}>Refresh</Button>
         </div>
       </div>
-      <div className={content} style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-        <div>
-          Search dir: { programs ? programs.inputDir.join(', ') : '---' }
-        </div>
+      <div
+        className={content}
+        style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
+      >
+        <div>Search dir: {programs ? programs.inputDir.join(', ') : '---'}</div>
         <div className={progList}>
           {programs
-            ? (
-                programs.progs.map(p =>
-                  <div
-                    key={p.name}
-                    style={selected === p.name ? { backgroundColor: '#c8c8c8', display: 'flex' } : { cursor: 'pointer', display: 'flex' } }
-                    onClick={() => {
-                      setSelected(p.name)
-                      load(p.name)
-                    }}
-                  >
-                    <span style={{ flex: '1' }}>{p.name}</span> <span>({new Date(p.modifiedDateTs * 1000).toLocaleDateString()})</span>
-                  </div>
-                )
-              )
+            ? programs.progs.map((p) => (
+                <div
+                  key={p.name}
+                  style={
+                    selected === p.name
+                      ? { backgroundColor: '#c8c8c8', display: 'flex' }
+                      : { cursor: 'pointer', display: 'flex' }
+                  }
+                  onClick={() => {
+                    setSelected(p.name)
+                    load(p.name)
+                  }}
+                >
+                  <span style={{ flex: '1' }}>{p.name}</span>{' '}
+                  <span>
+                    ({new Date(p.modifiedDateTs * 1000).toLocaleDateString()})
+                  </span>
+                </div>
+              ))
             : 'loading'}
         </div>
       </div>

@@ -3,24 +3,23 @@ import * as React from 'react'
 import { Input } from '../Input'
 import { ToggleButton } from '../ToggleButton'
 
-type InputToggleProps =
-  {
-    title: string
-    button?: string
-  } & (
-    {
+type InputToggleProps = {
+  title: string
+  button?: string
+} & (
+  | {
       type: 'number'
       value: number | undefined
       defaultValue: number
       onChanged: (v: number | undefined) => void
     }
-    | {
+  | {
       type: 'string'
       value: string | undefined
       defaultValue: string
       onChanged: (v: string | undefined) => void
     }
-  )
+)
 
 export const InputToggle = (props: InputToggleProps) => {
   const onValueChanged = (v: string) => {
@@ -32,14 +31,20 @@ export const InputToggle = (props: InputToggleProps) => {
   }
   const onToggleChanged = (v: boolean) => {
     if (props.type === 'number') {
-      props.onChanged(v ? (props.defaultValue || 1) : undefined)
+      props.onChanged(v ? props.defaultValue || 1 : undefined)
     } else if (props.type === 'string') {
-      props.onChanged(v ? (props.defaultValue || '1') : undefined)
+      props.onChanged(v ? props.defaultValue || '1' : undefined)
     }
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'row',
+        justifyContent: 'space-between'
+      }}
+    >
       {props.title}
       <div style={{ display: 'flex', flexDirection: 'row-reverse' }}>
         <Input

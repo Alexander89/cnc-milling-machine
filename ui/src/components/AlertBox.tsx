@@ -16,25 +16,35 @@ export const AlertBox = () => {
 
   const ButtonArea = () => {
     if (msg.buttons && msg.buttons.length) {
-      return <div style={{ display: 'flex' }}>
-        {msg.buttons.map((btn) =>
-          <Button key={btn.text} onClick={() => { setMsg(undefined); btn.onClick() }}>
-            {btn.text}
-          </Button>)
-        }
-      </div>
+      return (
+        <div style={{ display: 'flex' }}>
+          {msg.buttons.map((btn) => (
+            <Button
+              key={btn.text}
+              onClick={() => {
+                setMsg(undefined)
+                btn.onClick()
+              }}
+            >
+              {btn.text}
+            </Button>
+          ))}
+        </div>
+      )
     } else {
       return <Button onClick={() => setMsg(undefined)}>Ok</Button>
     }
   }
 
-  return <div className={alertWrapper}>
-    <div className={alertBox}>
-      <div className={header}>{msg.title || 'Alert'}</div>
-      <div className={message}>{msg.message}</div>
-      <ButtonArea />
+  return (
+    <div className={alertWrapper}>
+      <div className={alertBox}>
+        <div className={header}>{msg.title || 'Alert'}</div>
+        <div className={message}>{msg.message}</div>
+        <ButtonArea />
+      </div>
     </div>
-  </div>
+  )
 }
 
 const useStyle = createUseStyles({

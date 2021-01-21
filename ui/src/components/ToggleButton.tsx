@@ -11,9 +11,11 @@ type Props = {
 export const ToggleButton = ({ children, value, onClick }: Props) => {
   const { toggleStyle, toggleStyleActive } = useStyle()
   const activeClass = value ? [toggleStyle, toggleStyleActive] : [toggleStyle]
-  return <div onClick={() => onClick(!value)} className={activeClass.join(' ')}>
-    {children}
-  </div>
+  return (
+    <div onClick={() => onClick(!value)} className={activeClass.join(' ')}>
+      {children}
+    </div>
+  )
 }
 
 const useStyle = createUseStyles({
@@ -32,6 +34,7 @@ const useStyle = createUseStyles({
   toggleStyleActive: {
     backgroundColor: '#6d6db0 !important',
     border: 'solid 1px #c0c0c0',
-    boxShadow: '3px 3px 3px #555, inset 3px 3px 3px #555, inset -3px -3px 3px 0px #a8a8d6'
+    boxShadow:
+      '3px 3px 3px #555, inset 3px 3px 3px #555, inset -3px -3px 3px 0px #a8a8d6'
   }
 })

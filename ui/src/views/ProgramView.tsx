@@ -13,16 +13,23 @@ export const ProgramView = () => {
 
   obs('status$', setStatus)
 
-  return <div className={main}>
-    {status && status.devMode && <div className={devModeBanner}>running in dev-mode</div>}
-    <div className={header}>Program Management</div>
-    <div className={cardBox} style={{ alignItems: 'stretch', height: 'calc(100vh - 300px)' }}>
-      <ProgramSelect />
-      <ProgramEditor />
-      <div>
-        <Mode />
-        <ProgramMetaData />
+  return (
+    <div className={main}>
+      {status && status.devMode && (
+        <div className={devModeBanner}>running in dev-mode</div>
+      )}
+      <div className={header}>Program Management</div>
+      <div
+        className={cardBox}
+        style={{ alignItems: 'stretch', height: 'calc(100vh - 300px)' }}
+      >
+        <ProgramSelect />
+        <ProgramEditor />
+        <div>
+          <Mode />
+          <ProgramMetaData />
+        </div>
       </div>
     </div>
-  </div>
+  )
 }

@@ -5,7 +5,13 @@ import { createUseStyles } from 'react-jss'
 import { AlertBox } from './components/AlertBox'
 import { InfoBar } from './components/InfoBar'
 import { Menu } from './components/Menu'
-import { alertContext, AlertCtx, mkServiceCtx, Service, ServiceCtx } from './services'
+import {
+  alertContext,
+  AlertCtx,
+  mkServiceCtx,
+  Service,
+  ServiceCtx
+} from './services'
 import { Mode } from './types'
 import { MainView } from './views/MainView'
 import { ProgramView } from './views/ProgramView'
@@ -18,7 +24,7 @@ export const Main = () => {
   const [mode, setMode] = useState<Mode>('main')
   useEffect(() => {
     const ws = new WebSocket(`ws://${window.location.hostname}:1506/ws`)
-    ws.onopen = _ => setService(mkServiceCtx(ws))
+    ws.onopen = (_) => setService(mkServiceCtx(ws))
   }, [])
 
   const View = () => {
@@ -36,18 +42,20 @@ export const Main = () => {
     }
   }
 
-  return <ServiceCtx.Provider value={service} >
-    <AlertCtx.Provider value={alertContext} >
-      <div className={main}>
-        <AlertBox />
-        <Menu mode={mode} onChanged={setMode}/>
-        <div style={{ width: '100%', height: '100vh' }}>
-          <View />
-          <InfoBar />
+  return (
+    <ServiceCtx.Provider value={service}>
+      <AlertCtx.Provider value={alertContext}>
+        <div className={main}>
+          <AlertBox />
+          <Menu mode={mode} onChanged={setMode} />
+          <div style={{ width: '100%', height: '100vh' }}>
+            <View />
+            <InfoBar />
+          </div>
         </div>
-      </div>
-    </AlertCtx.Provider>
-  </ServiceCtx.Provider>
+      </AlertCtx.Provider>
+    </ServiceCtx.Provider>
+  )
 }
 
 const useStyle = createUseStyles({

@@ -9,9 +9,11 @@ type Props = {
 
 export const Button = ({ children, onClick }: Props) => {
   const { buttonStyle } = useStyle()
-  return <div onClick={() => onClick()} className={buttonStyle}>
-    <div>{children}</div>
-  </div>
+  return (
+    <div onClick={() => onClick()} className={buttonStyle}>
+      <div>{children}</div>
+    </div>
+  )
 }
 
 const useStyle = createUseStyles({

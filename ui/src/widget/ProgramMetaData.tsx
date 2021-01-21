@@ -12,22 +12,34 @@ export const ProgramMetaData = () => {
   const { card, header, content } = useWidgetStyle()
   const { value } = useStyle()
 
-  obs('loadProg$', p => setProgramName(p?.programName))
+  obs('loadProg$', (p) => setProgramName(p?.programName))
   obs('deleteProg$', () => setProgramName(undefined))
 
-  obs('availableProgs$', p => p && setPrograms(p.progs))
+  obs('availableProgs$', (p) => p && setPrograms(p.progs))
 
-  const Program = ({ prog }: {prog?: ProgramInfo}) => {
+  const Program = ({ prog }: { prog?: ProgramInfo }) => {
     if (!prog) {
       return <></>
     }
     return (
       <div className={content}>
-        <div className={value}><span>Name:</span> <div>{prog.name}</div></div>
-        <div className={value}><span>Size:</span> <div>{(prog.size / 1024).toFixed(1)} Kb</div></div>
-        <div className={value}><span>Created:</span> <div>{new Date(prog.createDateTs * 1000).toLocaleString()}</div></div>
-        <div className={value}><span>Modified:</span> <div>{new Date(prog.modifiedDateTs * 1000).toLocaleString()}</div></div>
-        <div className={value}><span>Lines Of Code:</span> <div>{prog.linesOfCode}</div></div>
+        <div className={value}>
+          <span>Name:</span> <div>{prog.name}</div>
+        </div>
+        <div className={value}>
+          <span>Size:</span> <div>{(prog.size / 1024).toFixed(1)} Kb</div>
+        </div>
+        <div className={value}>
+          <span>Created:</span>{' '}
+          <div>{new Date(prog.createDateTs * 1000).toLocaleString()}</div>
+        </div>
+        <div className={value}>
+          <span>Modified:</span>{' '}
+          <div>{new Date(prog.modifiedDateTs * 1000).toLocaleString()}</div>
+        </div>
+        <div className={value}>
+          <span>Lines Of Code:</span> <div>{prog.linesOfCode}</div>
+        </div>
       </div>
     )
   }
@@ -35,7 +47,9 @@ export const ProgramMetaData = () => {
   return (
     <div className={card} style={{ width: 560 }}>
       <div className={header}>Program: {programName || ''}</div>
-      {programs && programName && <Program prog={programs.find(p => p.name === programName)}/>}
+      {programs && programName && (
+        <Program prog={programs.find((p) => p.name === programName)} />
+      )}
     </div>
   )
 }

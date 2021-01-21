@@ -9,14 +9,22 @@ export const Position = () => {
   const { card, header, row, posValue } = useWidgetStyle()
   obs('position$', setPos)
 
-  return <div className={card}>
-    <div className={header}>Position</div>
-    {pos && (
-      <div className={row}>
-        <div className={posValue}>X<div>{(pos.x / 10).toFixed(2)} cm</div></div>
-        <div className={posValue}>Y<div>{(pos.y / 10).toFixed(2)} cm</div></div>
-        <div className={posValue}>Z<div>{(pos.z / 10).toFixed(2)} cm</div></div>
-      </div>
-    )}
-  </div>
+  return (
+    <div className={card}>
+      <div className={header}>Position</div>
+      {pos && (
+        <div className={row}>
+          <div className={posValue}>
+            X<div>{(pos.x / 10).toFixed(2)} cm</div>
+          </div>
+          <div className={posValue}>
+            Y<div>{(pos.y / 10).toFixed(2)} cm</div>
+          </div>
+          <div className={posValue}>
+            Z<div>{(pos.z / 10).toFixed(2)} cm</div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }

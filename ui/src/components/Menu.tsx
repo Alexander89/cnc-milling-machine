@@ -10,18 +10,23 @@ type Props = {
 
 export const Menu = ({ mode, onChanged }: Props) => {
   const { main, header, bottoms, active } = useStyle()
-  const Entry = ({ m, title }: {m: Mode, title: string}) =>
-    <div onClick={() => onChanged(m)} className={mode === m ? active : ''}>{title}</div>
-
-  return <div className={main}>
-    <div className={header}>Rusty-CNC</div>
-    <div className={bottoms}>
-      <Entry m={'main'} title={'Monitoring'} />
-      <Entry m={'program'} title={'Jobs'} />
-      <Entry m={'calibrate'} title={'Calibrate'} />
-      <Entry m={'settings'} title={'Settings'} />
+  const Entry = ({ m, title }: { m: Mode; title: string }) => (
+    <div onClick={() => onChanged(m)} className={mode === m ? active : ''}>
+      {title}
     </div>
-  </div>
+  )
+
+  return (
+    <div className={main}>
+      <div className={header}>Rusty-CNC</div>
+      <div className={bottoms}>
+        <Entry m={'main'} title={'Monitoring'} />
+        <Entry m={'program'} title={'Jobs'} />
+        <Entry m={'calibrate'} title={'Calibrate'} />
+        <Entry m={'settings'} title={'Settings'} />
+      </div>
+    </div>
+  )
 }
 
 const useStyle = createUseStyles({

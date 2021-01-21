@@ -1,4 +1,4 @@
-use crate::program::Next3dMovement;
+use crate::gnc::{Next3dMovement, NextMiscellaneous};
 use crate::types::{
     CircleMovement, LinearMovement, Location, MachineState, MoveType, SteppedCircleMovement,
     SteppedLinearMovement, SteppedMoveType,
@@ -12,6 +12,7 @@ pub struct InnerTaskProduction {
     pub destination: Location<i64>,
     pub move_type: SteppedMoveType,
 }
+
 #[derive(Debug, Clone)]
 pub enum CalibrateType {
     None,
@@ -32,6 +33,7 @@ pub struct InnerTaskCalibrate {
 #[derive(Debug)]
 pub enum InnerTask {
     Production(InnerTaskProduction),
+    Miscellaneous(NextMiscellaneous),
     Calibrate(InnerTaskCalibrate),
 }
 impl InnerTask {
@@ -71,7 +73,7 @@ impl InnerTask {
                     }),
                 })
             }
-            Task::Program(Next3dMovement {
+            Task::ProgramMovement(Next3dMovement {
                 speed,
                 move_type,
                 to,
@@ -130,7 +132,9 @@ impl InnerTask {
                     })
                 }
             },
-
+            Task::ProgramMiscellaneous(ht) => {
+                InnerTask::Miscellaneous(ht)
+            }
             Task::Calibrate(x, y, z) => InnerTask::Calibrate(InnerTaskCalibrate {
                 start_time: SystemTime::now(),
                 from: current_pos,
@@ -154,9 +158,15 @@ pub struct ManualTask {
     pub speed: f64,
 }
 
+pub enum ManualInstruction {
+    Movement(ManualTask),
+    Miscellaneous(NextMiscellaneous)
+}
+
 #[derive(Debug, Clone)]
 pub enum Task {
-    Program(Next3dMovement),
+    ProgramMovement(Next3dMovement),
+    ProgramMiscellaneous(NextMiscellaneous),
     Manual(ManualTask),
     Calibrate(CalibrateType, CalibrateType, CalibrateType),
 }
@@ -164,7 +174,8 @@ pub enum Task {
 impl Task {
     pub fn machine_state(&self) -> MachineState {
         match self {
-            Task::Program(_) => MachineState::ProgramTask,
+            Task::ProgramMovement(_) => MachineState::ProgramTask,
+            Task::ProgramMiscellaneous(_) => MachineState::ProgramTask,
             Task::Manual(_) => MachineState::ManualTask,
             Task::Calibrate(_, _, _) => MachineState::Calibrate,
         }

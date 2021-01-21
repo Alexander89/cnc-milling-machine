@@ -23,7 +23,8 @@ export const statusMessageC = t.type({
   currentProg: t.union([t.null, t.string]),
   calibrated: t.boolean,
   stepsTodo: t.number,
-  stepsDone: t.number
+  stepsDone: t.number,
+  isSwitchedOn: t.boolean
 })
 export type StatusMessage = t.TypeOf<typeof statusMessageC>
 
@@ -82,7 +83,8 @@ const broadcastServiceMock: BroadcastService = {
     mode: 'manual',
     currentProg: null,
     stepsDone: 0,
-    stepsTodo: 1
+    stepsTodo: 1,
+    isSwitchedOn: false
   }),
   info$: of({ type: 'info', lvl: 'warning', message: 'testMessage' })
 }

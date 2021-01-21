@@ -6,7 +6,7 @@ use std::{
     ops::{Add, Div, Mul, Neg, Sub},
 };
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum MachineState {
     Idle,
     ManualTask,

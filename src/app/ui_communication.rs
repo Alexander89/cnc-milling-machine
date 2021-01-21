@@ -2,10 +2,11 @@ use super::App;
 
 use crate::types::Location;
 use crate::ui::types::{
-    InfoLvl, ProgramInfo, WsAvailableProgramsMessage, WsCommandController, WsCommandProgram,
-    WsCommandSettings, WsCommands, WsCommandsFrom, WsControllerMessage, WsInfoMessage, WsMessages,
-    WsPositionMessage, WsReplyMessage, WsStatusMessage,
+    InfoLvl, ProgramInfo, WsAvailableProgramsMessage, WsCommandControl, WsCommandController,
+    WsCommandProgram, WsCommandSettings, WsCommands, WsCommandsFrom, WsControllerMessage,
+    WsInfoMessage, WsMessages, WsPositionMessage, WsReplyMessage, WsStatusMessage,
 };
+use crate::gnc::NextMiscellaneous;
 use std::sync::mpsc::Sender;
 use std::{
     fs::{remove_file, File, OpenOptions},
@@ -36,6 +37,13 @@ impl App {
                         self.send_controller_msg();
                     }
                 }
+                WsCommands::Control(WsCommandControl::OnOff { on }) => {
+                    if self.cnc.is_switched_on() != on {
+                        println!("switch to {}", on);
+                        self.cnc.manual_miscellaneous(if on { NextMiscellaneous::SwitchOn } else { NextMiscellaneous::SwitchOff });
+                        self.send_status_msg();
+                    }
+                }
                 WsCommands::Program(WsCommandProgram::Get) => {
                     self.send_available_programs_msg(uuid)
                 }
@@ -59,7 +67,12 @@ impl App {
                     program_name,
                     program,
                 }) => {
-                    match OpenOptions::new().write(true).create(true).truncate(true).open(program_name.clone()) {
+                    match OpenOptions::new()
+                        .write(true)
+                        .create(true)
+                        .truncate(true)
+                        .open(program_name.clone())
+                    {
                         Err(why) => {
                             self.info(format!("couldn't open {}: {}", program_name, why));
                             self.send_save_reply_message(uuid, program_name, false);
@@ -77,38 +90,6 @@ impl App {
                             };
                         }
                     }
-                    // if Path::new(&program_name).exists() {
-                    //     match File::open(program_name.clone()) {
-                    //         Err(why) => {
-                    //             self.info(format!("couldn't open {}: {}", program_name, why));
-                    //             self.send_save_reply_message(uuid, program_name, false);
-                    //         }
-                    //         Ok(mut file) => {
-                    //             match file.write_all(program.as_bytes()) {
-                    //                 Err(why) => {
-                    //                     self.info(format!(
-                    //                         "couldn't write to {}: {}",
-                    //                         program_name, why
-                    //                     ));
-                    //                     self.send_save_reply_message(uuid, program_name, false);
-                    //                 }
-                    //                 Ok(_) => self.send_save_reply_message(uuid, program_name, true),
-                    //             };
-                    //         }
-                    //     }
-                    // } else {
-                    //     match File::create(&program_name) {
-                    //         Err(why) => {
-                    //             self.info(format!("couldn't write to {}: {}", program_name, why));
-                    //             self.send_save_reply_message(uuid, program_name, true);
-                    //         }
-                    //         Ok(mut file) => self.send_save_reply_message(
-                    //             uuid,
-                    //             program_name,
-                    //             file.write_all(program.as_bytes()).is_ok(),
-                    //         ),
-                    //     }
-                    // }
                 }
                 WsCommands::Program(WsCommandProgram::Delete { program_name }) => {
                     self.send_delete_reply_message(
@@ -150,6 +131,7 @@ impl App {
             self.calibrated.clone(),
             self.steps_todo,
             self.steps_done,
+            self.cnc.is_switched_on(),
         )
     }
     pub fn send_status_msg(&self) {

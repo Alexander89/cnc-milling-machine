@@ -36,10 +36,10 @@ impl Actor {
     pub fn set_low(&mut self) {
         self.set_to(false)
     }
-    pub fn is_high(&mut self) -> bool {
+    pub fn is_high(&self) -> bool {
         (self.level == Level::High) == !self.invert_output
     }
-    pub fn is_low(&mut self) -> bool {
+    pub fn is_low(&self) -> bool {
         (self.level == Level::Low) == !self.invert_output
     }
 }

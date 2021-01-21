@@ -1,8 +1,9 @@
 use super::task::{
-    CalibrateType, InnerTask, InnerTaskCalibrate, InnerTaskProduction, ManualTask, Task,
+    CalibrateType, InnerTask, InnerTaskCalibrate, InnerTaskProduction, ManualInstruction, Task,
 };
 use super::Motor;
-use crate::io::Switch;
+use crate::gnc::NextMiscellaneous;
+use crate::io::{Switch, Actor};
 use crate::types::{
     CircleDirection, CircleStep, CircleStepCCW, CircleStepCW, CircleStepDir, Direction, Location,
     MachineState, SteppedCircleMovement, SteppedLinearMovement, SteppedMoveType,
@@ -11,7 +12,7 @@ use std::{
     fmt::Debug,
     sync::Mutex,
     sync::{
-        atomic::{AtomicBool, AtomicI32, AtomicI64, AtomicU32, Ordering::Relaxed},
+        atomic::{AtomicBool, AtomicI64, AtomicU32, Ordering::Relaxed},
         mpsc::Receiver,
         Arc,
     },
@@ -35,10 +36,14 @@ pub struct MotorControllerThread {
     current_location: Location<f64>,
     cancel_task: Arc<AtomicBool>,
     state: Arc<AtomicU32>,
-    steps_todo: Arc<AtomicI32>,
-    steps_done: Arc<AtomicI32>,
+    steps_todo: Arc<AtomicI64>,
+    steps_done: Arc<AtomicI64>,
     task_query: Arc<Mutex<Vec<Task>>>,
-    manual_task_receiver: Receiver<ManualTask>,
+    manual_instruction_receiver: Receiver<ManualInstruction>,
+
+    on_off_state: Arc<AtomicBool>,
+    on_off: Option<Actor>,
+    switch_on_off_delay: f64,
 }
 
 impl MotorControllerThread {
@@ -53,11 +58,14 @@ impl MotorControllerThread {
         current_task: Option<InnerTask>,
         current_location: Location<f64>,
         state: Arc<AtomicU32>,
-        steps_todo: Arc<AtomicI32>,
-        steps_done: Arc<AtomicI32>,
+        steps_todo: Arc<AtomicI64>,
+        steps_done: Arc<AtomicI64>,
         cancel_task: Arc<AtomicBool>,
         task_query: Arc<Mutex<Vec<Task>>>,
-        manual_task_receiver: Receiver<ManualTask>,
+        manual_instruction_receiver: Receiver<ManualInstruction>,
+        on_off_state: Arc<AtomicBool>,
+        on_off: Option<Actor>,
+        switch_on_off_delay: f64,
     ) -> MotorControllerThread {
         MotorControllerThread {
             x_step,
@@ -74,7 +82,10 @@ impl MotorControllerThread {
             steps_done,
             cancel_task,
             task_query,
-            manual_task_receiver,
+            manual_instruction_receiver,
+            on_off_state,
+            on_off,
+            switch_on_off_delay,
         }
     }
     pub fn get_pos(&self) -> Location<i64> {
@@ -97,16 +108,31 @@ impl MotorControllerThread {
         let mut last_distance_to_destination = 100;
         let mut q_ptr = 0;
         loop {
-            if let Ok(next_task) = self.manual_task_receiver.try_recv() {
-                let max_speed = next_task.speed;
-                let task = Task::Manual(next_task);
-                self.state.store(task.machine_state().into(), Relaxed);
-                self.current_task = Some(InnerTask::from_task(
-                    task,
-                    self.get_pos(),
-                    self.get_step_sizes(),
-                    max_speed,
-                ));
+            match self.manual_instruction_receiver.try_recv() {
+                Ok(ManualInstruction::Movement(next_task)) => {
+                    let max_speed = next_task.speed;
+                    let task = Task::Manual(next_task);
+                    self.state.store(task.machine_state().into(), Relaxed);
+                    self.current_task = Some(InnerTask::from_task(
+                        task,
+                        self.get_pos(),
+                        self.get_step_sizes(),
+                        max_speed,
+                    ));
+                }
+                Ok(ManualInstruction::Miscellaneous(next_miscellaneous)) => {
+                    match next_miscellaneous {
+                        NextMiscellaneous::SwitchOn => {
+                            self.switch_on();
+                            self.current_task = None;
+                        }
+                        NextMiscellaneous::SwitchOff => {
+                            self.switch_off();
+                            self.current_task = None;
+                        }
+                    }
+                }
+                Err(_) => ()
             };
             if self.cancel_task.load(Relaxed) {
                 self.cancel_task.store(false, Relaxed);
@@ -355,13 +381,27 @@ impl MotorControllerThread {
                         }
                     }
                 }
+                Some(InnerTask::Miscellaneous(hardware_task)) => {
+                    match hardware_task {
+                        NextMiscellaneous::SwitchOn => {
+                            self.switch_on();
+                            thread::sleep(Duration::from_secs_f64(self.switch_on_off_delay));
+                            self.current_task = None;
+                        }
+                        NextMiscellaneous::SwitchOff => {
+                            self.switch_off();
+                            thread::sleep(Duration::from_secs_f64(self.switch_on_off_delay));
+                            self.current_task = None;
+                        }
+                    }
+                }
                 None => match self.task_query.lock() {
                     Ok(ref mut lock) if lock.len() > q_ptr => {
                         let next = lock[q_ptr].clone();
                         q_ptr += 1;
                         self.state.store(next.machine_state().into(), Relaxed);
-                        self.steps_done.store(q_ptr as i32, Relaxed);
-                        self.steps_todo.store((lock.len() - q_ptr) as i32, Relaxed);
+                        self.steps_done.store(q_ptr as i64, Relaxed);
+                        self.steps_todo.store((lock.len() - q_ptr) as i64, Relaxed);
                         println!("next {:?} {:?}", q_ptr, lock.len() - q_ptr);
                         self.current_task = Some(InnerTask::from_task(
                             next,
@@ -394,5 +434,12 @@ impl MotorControllerThread {
         let y_speed: f64 = self.motor_y.speed as f64 * self.motor_y.step_size;
         let z_speed: f64 = self.motor_z.speed as f64 * self.motor_z.step_size;
         x_speed.min(y_speed).min(z_speed)
+    }
+
+    fn switch_on(&mut self) {
+        self.on_off.as_mut().map(|actor| actor.set_high());
+    }
+    fn switch_off(&mut self) {
+        self.on_off.as_mut().map(|actor| actor.set_low());
     }
 }

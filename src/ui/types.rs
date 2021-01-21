@@ -104,6 +104,7 @@ pub struct WsStatusMessage {
     pub calibrated: bool,
     pub steps_todo: i64,
     pub steps_done: i64,
+    pub is_switched_on: bool,
 }
 impl WsStatusMessage {
     pub fn new(
@@ -114,6 +115,7 @@ impl WsStatusMessage {
         calibrated: bool,
         steps_todo: i64,
         steps_done: i64,
+        is_switched_on: bool,
     ) -> WsStatusMessage {
         WsStatusMessage {
             mode,
@@ -123,6 +125,7 @@ impl WsStatusMessage {
             calibrated,
             steps_todo,
             steps_done,
+            is_switched_on,
         }
     }
 }
@@ -246,6 +249,7 @@ pub struct WsCommandsFrom(pub Uuid, pub WsCommands);
 #[serde(rename_all = "camelCase", tag = "cmd")]
 pub enum WsCommands {
     Program(WsCommandProgram),
+    Control(WsCommandControl),
     Controller(WsCommandController),
     Settings(WsCommandSettings),
 }
@@ -274,6 +278,13 @@ pub enum WsCommandProgram {
         scale: f64,
     },
     Cancel,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "action")]
+pub enum WsCommandControl {
+    // Move { direction: string, speed: f64},
+    OnOff { on: bool },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

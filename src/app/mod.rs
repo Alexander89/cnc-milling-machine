@@ -5,7 +5,7 @@ mod ui_communication;
 
 use crate::io::{Actor, Switch};
 use crate::motor::{motor_controller::MotorController, MockMotor, Motor, StepMotor};
-use crate::program::Program;
+use crate::gnc::Gnc;
 use crate::types::Location;
 use crate::ui::types::{Mode, WsCommandsFrom, WsMessages};
 
@@ -28,7 +28,7 @@ pub struct App {
     pub in_opp: bool,
     pub cnc: MotorController,
     pub current_mode: Mode,
-    pub prog: Option<Program>,
+    pub prog: Option<Gnc>,
     pub calibrated: bool,
     pub selected_program: Option<String>,
     ui_data_sender: Sender<WsMessages>,
@@ -113,7 +113,7 @@ impl App {
             (
                 settings
                     .on_off_gpio
-                    .map(|pin| Actor::new(pin, false, false)), // don't invert and start switched off
+                    .map(|pin| Actor::new(pin, true, false)), // don't invert and start switched off
                 settings.calibrate_z_gpio.map(|pin| Switch::new(pin, false)),
                 Motor::new(
                     "x".to_string(),
@@ -158,7 +158,7 @@ impl App {
         };
 
         // create cnc MotorController
-        MotorController::new(on_off, motor_x, motor_y, motor_z, z_calibrate)
+        MotorController::new(on_off, settings.switch_on_off_delay, motor_x, motor_y, motor_z, z_calibrate)
     }
     fn gamepad_connected(gilrs: &Gilrs) -> bool {
         let mut gamepad_found = false;
@@ -210,7 +210,7 @@ impl App {
             let mut known_progs = vec![];
             loop {
                 for path in path_vec.iter() {
-                    watcher.watch(path, RecursiveMode::NonRecursive).unwrap();
+                    watcher.watch(path, RecursiveMode::Recursive).unwrap();
                 }
 
                 'watch: loop {

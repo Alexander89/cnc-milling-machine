@@ -1,7 +1,7 @@
 use super::App;
 
 use crate::motor::task::CalibrateType;
-use crate::program::{NextInstruction, Program};
+use crate::gnc::{NextInstruction, Gnc};
 use crate::types::{Location, MachineState};
 use crate::ui::{
     types::{Mode, WsCommandsFrom, WsControllerMessage, WsMessages, WsPositionMessage},
@@ -103,19 +103,8 @@ impl App {
                 }
                 EventType::ButtonReleased(Button::Start, _)
                 | EventType::ButtonReleased(Button::Mode, _) => {
-                    if !self.calibrated {
-                        self.warning(format!("start program without calibration"));
-                    }
-                    if let Some(ref sel_prog) = self.selected_program {
-                        if let Ok(load_prog) =
-                            Program::new(sel_prog, 5.0, 50.0, 1.0, self.cnc.get_pos(), false)
-                        {
-                            println!("commands found {:?}", load_prog.len());
-                            self.prog = Some(load_prog);
-                            self.set_current_mode(Mode::Program);
-                        } else {
-                            self.error(format!("program is not able to load"));
-                        };
+                    if let Some(sel_prog) = self.selected_program.to_owned() {
+                        self.start_program(&sel_prog, false, 1.0);
                     } else {
                         self.error(format!("No Program selected"));
                     }
@@ -206,7 +195,7 @@ impl App {
                         self.cnc.set_pos(Location::new(0.0, 0.0, pos.z));
                     }
                 }
-                EventType::ButtonPressed(Button::West, _) => {
+                EventType::ButtonPressed(Button::East, _) => {
                     self.info(format!("calibrate"));
                     self.cnc.calibrate(
                         CalibrateType::None,
@@ -214,6 +203,8 @@ impl App {
                         CalibrateType::ContactPin,
                     );
                     self.set_current_mode(Mode::Calibrate);
+                    self.in_opp = true;
+                    thread::sleep(Duration::new(0, 10_000_000));
                 }
                 _ => {}
             }
@@ -234,15 +225,14 @@ impl App {
                 };
             }
         }
-        if let Some(ref mut prog) = self.prog {
+        if let Some(prog) = self.prog.as_mut() {
             for next_instruction in prog {
                 match next_instruction {
                     NextInstruction::Movement(next_movement) => {
-                        self.cnc.query_task(next_movement);
+                        self.cnc.query_g_task(next_movement);
                     }
-                    NextInstruction::Miscellaneous(task) => {
-                        println!("Miscellaneous {:?}", task);
-                        //self.info(format!("Miscellaneous {:?}", task));
+                    NextInstruction::Miscellaneous(next_movement) => {
+                        self.cnc.query_m_task(next_movement);
                     }
                     NextInstruction::NotSupported(err) => {
                         println!("NotSupported {:?}", err);
@@ -255,17 +245,11 @@ impl App {
                     _ => {}
                 };
             }
+            thread::sleep(Duration::new(0, 100_000_000));
 
-            match (self.cnc.get_state(), self.in_opp) {
-                (MachineState::Idle, true) => {
-                    self.set_current_mode(Mode::Manual);
-                    self.in_opp = false;
-                }
-                (MachineState::ProgramTask, false) => {
-                    self.calibrated = false;
-                    self.in_opp = true;
-                }
-                _ => (),
+            if self.cnc.get_state() == MachineState::Idle  {
+                self.set_current_mode(Mode::Manual);
+                self.in_opp = false;
             }
         }
 
@@ -283,22 +267,17 @@ impl App {
                 };
             }
         }
-        match (self.cnc.get_state(), self.in_opp) {
-            (MachineState::Idle, true) => {
-                let calibrate_hight = Location {
-                    x: 0.0f64,
-                    y: 0.0f64,
-                    z: 20.0f64,
-                };
-                self.cnc.set_pos(calibrate_hight);
-                self.set_current_mode(Mode::Manual);
-                self.calibrated = true;
-                self.in_opp = false;
-            }
-            (MachineState::Calibrate, false) => {
-                self.in_opp = true;
-            }
-            _ => (),
+
+        if self.cnc.get_state() == MachineState::Idle  {
+            let calibrate_hight = Location {
+                x: 0.0f64,
+                y: 0.0f64,
+                z: if self.settings.invert_z { -20.0f64 } else { 20.0f64 },
+            };
+            self.cnc.set_pos(calibrate_hight);
+            self.set_current_mode(Mode::Manual);
+            self.calibrated = true;
+            self.in_opp = false;
         }
 
         true
@@ -308,7 +287,7 @@ impl App {
             self.warning(format!("start program without calibration"));
         }
         self.set_selected_program(Some(program_name.to_owned()));
-        if let Ok(load_prog) = Program::new(
+        if let Ok(load_prog) = Gnc::new(
             &program_name,
             5.0,
             50.0,

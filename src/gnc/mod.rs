@@ -10,7 +10,7 @@ enum Coordinations {
 }
 
 #[derive(Debug, Clone)]
-pub struct Program {
+pub struct Gnc {
     content: String,
     codes: Vec<GCode>,
     current_step: usize,
@@ -22,7 +22,7 @@ pub struct Program {
     rapid_speed: f64,
 }
 
-impl Program {
+impl Gnc {
     pub fn new(
         path: &str,
         default_speed: f64,
@@ -30,7 +30,7 @@ impl Program {
         scaler: f64,
         start_pos: Location<f64>,
         invert_z: bool,
-    ) -> std::io::Result<Program> {
+    ) -> std::io::Result<Gnc> {
         let mut file = File::open(path)?;
         let mut content = String::new();
         file.read_to_string(&mut content)?;
@@ -43,7 +43,7 @@ impl Program {
             }
         }
 
-        Ok(Program {
+        Ok(Gnc {
             content,
             codes,
             current_step: 0,
@@ -97,7 +97,7 @@ pub enum NextInstruction {
     NotSupported(String),
 }
 
-impl Iterator for Program {
+impl Iterator for Gnc {
     // we will be counting with usize
     type Item = NextInstruction;
 
@@ -122,7 +122,7 @@ impl Iterator for Program {
     }
 }
 
-impl Program {
+impl Gnc {
     fn parse_g_code(&mut self, code: GCode) -> Option<NextInstruction> {
         match code.major_number() {
             0 => {

@@ -4,8 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "preinstall": "npx npm-force-resolutions",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "s_prestart": "tsc --noEmit",
+    "prestart": "tsc --noEmit",
     "start": "parcel --host 0.0.0.0 --out-dir dist/debug src/index.html",
     "build": "npm run monaco:build:release && parcel build --out-dir ../static src/index.html",
     "lint": "eslint ./src/**/* --fix",
@@ -16,13 +17,16 @@
   },
   "author": "",
   "license": "ISC",
+  "resolutions": {
+    "node-forge": "0.10.0"
+  },
   "devDependencies": {
     "@types/react": "^17.0.0",
     "@types/react-dom": "^17.0.0",
     "@types/react-jss": "^10.0.0",
-    "@typescript-eslint/eslint-plugin": "^4.11.1",
-    "@typescript-eslint/parser": "^4.11.1",
-    "eslint": "^7.17.0",
+    "@typescript-eslint/eslint-plugin": "^4.14.0",
+    "@typescript-eslint/parser": "^4.14.0",
+    "eslint": "^7.18.0",
     "eslint-config-standard": "^16.0.2",
     "eslint-plugin-import": "^2.22.1",
     "eslint-plugin-node": "^11.1.0",
@@ -34,10 +38,10 @@
   "dependencies": {
     "fp-ts": "^2.9.3",
     "io-ts": "^2.2.13",
+    "monaco-editor": "^0.21.3",
     "react": "^17.0.1",
     "react-dom": "^17.0.1",
     "react-jss": "^10.5.0",
-    "rxjs": "^6.6.3",
-    "monaco-editor": "^0.21.2"
+    "rxjs": "^6.6.3"
   }
 }

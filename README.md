@@ -1,12 +1,14 @@
-# cnc-milling driver for gcode
+# cnc-milling driver for GCode / MCode
 
-This little driver runs on a RPi V4 and is connected to a PCB board to control the steppers.
+This little driver runs on a RPi V 3B+ and is connected to a PCB board to control the steppers.
 
-Until now, a gamepad is required to move the head around and select and start programs
+Until now, a gamepad is required to move the head around and select and start programs.
+
+A Web UI is available on http://<pi>:1506
 
 ## RPi connector Board
 
-Eagle drawings and cam files are available in the folder `PCB` (TODO). Reach me out, I still have some PCBs on stock. 
+Eagle drawings and cam files are available in the folder `PCB` (TODO). Reach me out, I still have some PCBs on stock.
 (4x V1 bank, 1x V1 assembled and tested, 1x V2 blank)
 
 ### Rev1
@@ -24,22 +26,31 @@ you can use Z-Down end switch input to calibrate
 - 2 pwm out (servo or GPIO out/in 3.3V!)
 - external power input (jumper)
 - i²C connector
-- calibrate input 
+- calibrate input
 - more compact
 - screw holes
 
+## Software features
+
+- Support for G0 G1 G2 G3 G21 G90 G91 M0 M1 M3 M4 M5
+- Settings file
+- Switch spindle on / off
+- Motor ramp for speed up
+- Web UI for remote control
+- Manipulate GCode in UI
+- Multi input directory live watcher for USB-Stick detection.
+- Show progress in UI
+
 ## Upcoming features
 
-1. switch spindle on / off
-2. motor ramp for speed up
-3. create UI 
-4. emergency trigger (stop || stop and go up)
-5. drive to max dimensions for selected program
-6. manipulate GCode in UI
-7. show path in ui
-8. more commands
+1. Emergency trigger (stop || stop and go up)
+2. Drive to max dimensions for selected program
+3. Show path in ui
+4. Responsive web ui for mobile phones
+5. Move spindel in UI with virtual joystick
 
 ## supported gCode commands
+
 | code | command                                              | example                                                 |
 | ---- | ---------------------------------------------------- | ------------------------------------------------------- |
 | G0   | rapid move to XYZ position                           | G0 X1.0 Y0.0 Z 2.0                                      |

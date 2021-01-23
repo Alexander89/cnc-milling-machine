@@ -145,19 +145,19 @@ impl ProgramInfo {
     pub fn from_string(name: String) -> ProgramInfo {
         let metadata = fs::metadata(name.clone()).unwrap();
         ProgramInfo {
-            name: name.to_owned(),
+            name,
             path: String::from(""),
             size: metadata.len(),
             lines_of_code: 0,
             create_date_ts: metadata
                 .created()
-                .unwrap_or(SystemTime::now())
+                .unwrap_or_else(|_| SystemTime::now())
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
                 .as_secs(),
             modified_date_ts: metadata
                 .modified()
-                .unwrap_or(SystemTime::now())
+                .unwrap_or_else(|_| SystemTime::now())
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
                 .as_secs(),

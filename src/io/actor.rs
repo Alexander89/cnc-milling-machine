@@ -27,12 +27,14 @@ impl Actor {
         actor
     }
     fn set_to(&mut self, value: bool) {
-        let lvl = if value == !self.invert_output {
+        let lvl = if value != self.invert_output {
             Level::High
         } else {
             Level::Low
         };
-        self.gpio.as_mut().map(|out| out.write(lvl));
+        if let Some(out) = self.gpio.as_mut() {
+            out.write(lvl)
+        }
         self.level = lvl;
     }
     pub fn set_high(&mut self) {
@@ -42,9 +44,9 @@ impl Actor {
         self.set_to(false)
     }
     pub fn is_high(&self) -> bool {
-        (self.level == Level::High) == !self.invert_output
+        (self.level == Level::High) != self.invert_output
     }
     pub fn is_low(&self) -> bool {
-        (self.level == Level::Low) == !self.invert_output
+        (self.level == Level::Low) != self.invert_output
     }
 }

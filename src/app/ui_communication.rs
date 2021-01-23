@@ -132,10 +132,10 @@ impl App {
     pub fn get_status_msg(&self) -> WsStatusMessage {
         WsStatusMessage::new(
             self.current_mode.clone(),
-            self.settings.dev_mode.clone(),
-            self.in_opp.clone(),
+            self.settings.dev_mode,
+            self.in_opp,
             self.selected_program.clone(),
-            self.calibrated.clone(),
+            self.calibrated,
             self.steps_todo,
             self.steps_done,
             self.cnc.is_switched_on(),

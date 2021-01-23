@@ -18,7 +18,7 @@ use notify::{raw_watcher, RawEvent, RecursiveMode, Watcher};
 use std::sync::mpsc;
 use std::{fs, thread, time::Duration};
 
-const SETTINGS_PATH: &'static str = "./settings.yaml";
+const SETTINGS_PATH: &str = "./settings.yaml";
 
 pub struct App {
     pub available_progs: Vec<String>,
@@ -180,7 +180,7 @@ impl App {
         }
         gamepad_found
     }
-    fn read_available_progs(input_dir: &Vec<String>) -> Vec<String> {
+    fn read_available_progs(input_dir: &[String]) -> Vec<String> {
         input_dir
             .iter()
             .flat_map(|path| {
@@ -194,8 +194,8 @@ impl App {
             .collect::<Vec<String>>()
     }
     pub fn update_available_progs(
-        input_dir: &Vec<String>,
-        available_progs: &Vec<String>,
+        input_dir: &[String],
+        available_progs: &[String],
     ) -> (bool, Vec<String>) {
         let new_content = App::read_available_progs(input_dir);
 
@@ -205,8 +205,8 @@ impl App {
             // check if both arrays contain the same content
             let match_count = new_content
                 .iter()
-                .zip(available_progs.clone())
-                .filter(|(a, b)| *a == b)
+                .zip(available_progs)
+                .filter(|(a, b)| a == b)
                 .count();
             (match_count != available_progs.len(), new_content)
         }
@@ -217,7 +217,7 @@ impl App {
         let mut path_vec = self.settings.input_dir.clone();
         thread::spawn(move || {
             let (tx_fs_changed, rx_fs_changed) = mpsc::channel();
-            let mut watcher = raw_watcher(tx_fs_changed.clone()).unwrap();
+            let mut watcher = raw_watcher(tx_fs_changed).unwrap();
             let mut publish_update = false;
             let mut known_progs = vec![];
             loop {

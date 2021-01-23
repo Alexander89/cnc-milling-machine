@@ -88,8 +88,8 @@ impl Default for Settings {
 
 impl Settings {
     pub fn from_file(file_path: &str) -> Settings {
-        let file_path_2 = file_path.clone();
-        let mut settings = if let Ok(data) = fs::read_to_string(file_path_2) {
+        let file_path_2 = file_path.to_owned();
+        let mut settings = if let Ok(data) = fs::read_to_string(&file_path_2) {
             serde_yaml::from_str(&data).unwrap()
         } else {
             let s = Settings::default();

@@ -436,13 +436,14 @@ impl MotorControllerThread {
     }
 
     fn switch_on(&mut self) {
-        println!("switch on");
-        self.on_off.as_mut().map(|actor| actor.set_high());
+        println!("switch on now");
+        if let Some(actor) = self.on_off.as_mut() { actor.set_high() }
         self.on_off_state.store(true, Relaxed);
     }
     fn switch_off(&mut self) {
-        println!("switch of");
-        self.on_off.as_mut().map(|actor| actor.set_low());
+        println!("switch off now");
+        if let Some(actor) = self.on_off.as_mut() { actor.set_low() }
+
         self.on_off_state.store(false, Relaxed);
     }
 }

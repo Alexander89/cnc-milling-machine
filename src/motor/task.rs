@@ -54,9 +54,9 @@ impl InnerTask {
         match t {
             Task::Manual(task) => {
                 let input = Location::new(task.move_x_speed, task.move_y_speed, task.move_z_speed);
-                let speed = input.clone().distance() * task.speed;
+                let speed = input.distance() * task.speed;
 
-                let move_vec: Location<f64> = input.clone() * 10000.0f64;
+                let move_vec: Location<f64> = input * 10000.0f64;
                 let delta: Location<i64> = (move_vec.clone() / step_sizes).into(); // [steps] (10m more than the table into i64 steps)
 
                 let destination = current_pos.clone() + delta.clone();

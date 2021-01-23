@@ -120,10 +120,7 @@ impl Handler<WsMessages> for System {
 
     fn handle(&mut self, msg: WsMessages, _: &mut SystemCtx) -> Self::Result {
         if let WsMessages::Reply { to, msg } = msg {
-            let new_msg = WsMessages::Reply {
-                to: to.clone(),
-                msg,
-            };
+            let new_msg = WsMessages::Reply { to, msg };
             self.send_message_to(new_msg, &to);
         } else {
             match msg {

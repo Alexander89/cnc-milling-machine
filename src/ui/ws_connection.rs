@@ -5,7 +5,6 @@ use actix::{
     Running, StreamHandler, WrapFuture,
 };
 use actix_web_actors::ws;
-use serde_json;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
@@ -96,7 +95,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsConnection {
             Ok(ws::Message::Text(s)) => {
                 if let Ok(cmd) = serde_json::from_str::<WsCommands>(&s) {
                     self.system_addr
-                        .do_send(WsCommandsFrom(self.id.clone(), cmd));
+                        .do_send(WsCommandsFrom(self.id, cmd));
                 } else {
                     println!("got unknown message {}", s);
                 }

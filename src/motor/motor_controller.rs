@@ -4,8 +4,8 @@ use super::{
     task::{ManualInstruction, ManualTask, Task},
     Result,
 };
-use crate::io::{Actor, Switch};
 use crate::gnc::{Next3dMovement, NextMiscellaneous};
+use crate::io::{Actor, Switch};
 use crate::types::{Location, MachineState};
 use std::{
     fmt::Debug,
@@ -57,7 +57,8 @@ impl MotorController {
             z: motor_z.get_step_size(),
         };
 
-        let (manual_instruction_sender, receive_manual_instruction) = channel::<ManualInstruction>();
+        let (manual_instruction_sender, receive_manual_instruction) =
+            channel::<ManualInstruction>();
         let x = motor_x.get_pos_ref();
         let y = motor_y.get_pos_ref();
         let z = motor_z.get_pos_ref();
@@ -86,7 +87,7 @@ impl MotorController {
                 receive_manual_instruction,
                 on_off_state_inner,
                 on_off,
-                switch_on_off_delay
+                switch_on_off_delay,
             );
 
             inner.run();
@@ -108,10 +109,16 @@ impl MotorController {
         }
     }
     pub fn query_g_task(&mut self, task: Next3dMovement) {
-        self.task_query.lock().unwrap().push(Task::ProgramMovement(task));
+        self.task_query
+            .lock()
+            .unwrap()
+            .push(Task::ProgramMovement(task));
     }
     pub fn query_m_task(&mut self, task: NextMiscellaneous) {
-        self.task_query.lock().unwrap().push(Task::ProgramMiscellaneous(task));
+        self.task_query
+            .lock()
+            .unwrap()
+            .push(Task::ProgramMiscellaneous(task));
     }
     pub fn calibrate(&mut self, x: CalibrateType, y: CalibrateType, z: CalibrateType) {
         self.task_query

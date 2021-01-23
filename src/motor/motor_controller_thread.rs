@@ -3,7 +3,7 @@ use super::task::{
 };
 use super::Motor;
 use crate::gnc::NextMiscellaneous;
-use crate::io::{Switch, Actor};
+use crate::io::{Actor, Switch};
 use crate::types::{
     CircleDirection, CircleStep, CircleStepCCW, CircleStepCW, CircleStepDir, Direction, Location,
     MachineState, SteppedCircleMovement, SteppedLinearMovement, SteppedMoveType,
@@ -132,7 +132,7 @@ impl MotorControllerThread {
                         }
                     }
                 }
-                Err(_) => ()
+                Err(_) => (),
             };
             if self.cancel_task.load(Relaxed) {
                 self.cancel_task.store(false, Relaxed);
@@ -381,20 +381,18 @@ impl MotorControllerThread {
                         }
                     }
                 }
-                Some(InnerTask::Miscellaneous(hardware_task)) => {
-                    match hardware_task {
-                        NextMiscellaneous::SwitchOn => {
-                            self.switch_on();
-                            thread::sleep(Duration::from_secs_f64(self.switch_on_off_delay));
-                            self.current_task = None;
-                        }
-                        NextMiscellaneous::SwitchOff => {
-                            self.switch_off();
-                            thread::sleep(Duration::from_secs_f64(self.switch_on_off_delay));
-                            self.current_task = None;
-                        }
+                Some(InnerTask::Miscellaneous(hardware_task)) => match hardware_task {
+                    NextMiscellaneous::SwitchOn => {
+                        self.switch_on();
+                        thread::sleep(Duration::from_secs_f64(self.switch_on_off_delay));
+                        self.current_task = None;
                     }
-                }
+                    NextMiscellaneous::SwitchOff => {
+                        self.switch_off();
+                        thread::sleep(Duration::from_secs_f64(self.switch_on_off_delay));
+                        self.current_task = None;
+                    }
+                },
                 None => match self.task_query.lock() {
                     Ok(ref mut lock) if lock.len() > q_ptr => {
                         let next = lock[q_ptr].clone();
@@ -429,6 +427,7 @@ impl MotorControllerThread {
             }
         }
     }
+
     fn max_speed(&self) -> f64 {
         let x_speed: f64 = self.motor_x.speed as f64 * self.motor_x.step_size;
         let y_speed: f64 = self.motor_y.speed as f64 * self.motor_y.step_size;
@@ -437,9 +436,13 @@ impl MotorControllerThread {
     }
 
     fn switch_on(&mut self) {
+        println!("switch on");
         self.on_off.as_mut().map(|actor| actor.set_high());
+        self.on_off_state.store(true, Relaxed);
     }
     fn switch_off(&mut self) {
+        println!("switch of");
         self.on_off.as_mut().map(|actor| actor.set_low());
+        self.on_off_state.store(false, Relaxed);
     }
 }

@@ -5,13 +5,18 @@ use rppal::gpio::{Gpio, Level, OutputPin};
 pub struct Actor {
     pin: u8,
     invert_output: bool,
-    gpio: OutputPin,
+    gpio: Option<OutputPin>,
     level: Level,
 }
 
 impl Actor {
     pub fn new(pin: u8, invert_output: bool, default: bool) -> Actor {
-        let gpio = Gpio::new().unwrap().get(pin).unwrap().into_output();
+        let gpio = Gpio::new()
+            .ok()
+            .and_then(|new_gpio| new_gpio.get(pin).ok().map(|io| io.into_output()));
+        if gpio.is_none() {
+            println!("> failed to connect actor GPIO for pin {}", pin);
+        }
         let mut actor = Actor {
             pin,
             invert_output,
@@ -27,7 +32,7 @@ impl Actor {
         } else {
             Level::Low
         };
-        self.gpio.write(lvl);
+        self.gpio.as_mut().map(|out| out.write(lvl));
         self.level = lvl;
     }
     pub fn set_high(&mut self) {

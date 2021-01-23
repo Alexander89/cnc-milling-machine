@@ -1,7 +1,7 @@
 use super::App;
 
+use crate::gnc::{Gnc, NextInstruction};
 use crate::motor::task::CalibrateType;
-use crate::gnc::{NextInstruction, Gnc};
 use crate::types::{Location, MachineState};
 use crate::ui::{
     types::{Mode, WsCommandsFrom, WsControllerMessage, WsMessages, WsPositionMessage},
@@ -247,7 +247,7 @@ impl App {
             }
             thread::sleep(Duration::new(0, 100_000_000));
 
-            if self.cnc.get_state() == MachineState::Idle  {
+            if self.cnc.get_state() == MachineState::Idle {
                 self.set_current_mode(Mode::Manual);
                 self.in_opp = false;
             }
@@ -268,11 +268,15 @@ impl App {
             }
         }
 
-        if self.cnc.get_state() == MachineState::Idle  {
+        if self.cnc.get_state() == MachineState::Idle {
             let calibrate_hight = Location {
                 x: 0.0f64,
                 y: 0.0f64,
-                z: if self.settings.invert_z { -20.0f64 } else { 20.0f64 },
+                z: if self.settings.invert_z {
+                    -20.0f64
+                } else {
+                    20.0f64
+                },
             };
             self.cnc.set_pos(calibrate_hight);
             self.set_current_mode(Mode::Manual);

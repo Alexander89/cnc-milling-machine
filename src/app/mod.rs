@@ -3,9 +3,9 @@ mod setters;
 pub mod settings;
 mod ui_communication;
 
+use crate::gnc::Gnc;
 use crate::io::{Actor, Switch};
 use crate::motor::{motor_controller::MotorController, MockMotor, Motor, StepMotor};
-use crate::gnc::Gnc;
 use crate::types::Location;
 use crate::ui::types::{Mode, WsCommandsFrom, WsMessages};
 
@@ -91,8 +91,10 @@ impl App {
     fn create_cnc_from_settings(settings: &Settings) -> MotorController {
         let (on_off, z_calibrate, motor_x, motor_y, motor_z) = if settings.dev_mode {
             (
-                None,
-                None,
+                settings
+                    .on_off_gpio
+                    .map(|pin| Actor::new(pin, false, false)),
+                settings.calibrate_z_gpio.map(|pin| Switch::new(pin, false)),
                 Motor::new(
                     "x".to_string(),
                     settings.motor_x.max_step_speed,
@@ -113,7 +115,7 @@ impl App {
             (
                 settings
                     .on_off_gpio
-                    .map(|pin| Actor::new(pin, true, false)), // don't invert and start switched off
+                    .map(|pin| Actor::new(pin, false, false)), // don't invert and start switched off
                 settings.calibrate_z_gpio.map(|pin| Switch::new(pin, false)),
                 Motor::new(
                     "x".to_string(),
@@ -161,7 +163,14 @@ impl App {
         };
 
         // create cnc MotorController
-        MotorController::new(on_off, settings.switch_on_off_delay, motor_x, motor_y, motor_z, z_calibrate)
+        MotorController::new(
+            on_off,
+            settings.switch_on_off_delay,
+            motor_x,
+            motor_y,
+            motor_z,
+            z_calibrate,
+        )
     }
     fn gamepad_connected(gilrs: &Gilrs) -> bool {
         let mut gamepad_found = false;

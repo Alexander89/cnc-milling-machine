@@ -1,16 +1,18 @@
 use super::App;
 
+use crate::gnc::NextMiscellaneous;
 use crate::types::Location;
 use crate::ui::types::{
     InfoLvl, ProgramInfo, WsAvailableProgramsMessage, WsCommandControl, WsCommandController,
     WsCommandProgram, WsCommandSettings, WsCommands, WsCommandsFrom, WsControllerMessage,
     WsInfoMessage, WsMessages, WsPositionMessage, WsReplyMessage, WsStatusMessage,
 };
-use crate::gnc::NextMiscellaneous;
-use std::sync::mpsc::Sender;
 use std::{
     fs::{remove_file, File, OpenOptions},
     io::prelude::*,
+    sync::mpsc::Sender,
+    thread,
+    time::Duration,
 };
 use uuid::Uuid;
 
@@ -40,7 +42,12 @@ impl App {
                 WsCommands::Control(WsCommandControl::OnOff { on }) => {
                     if self.cnc.is_switched_on() != on {
                         println!("switch to {}", on);
-                        self.cnc.manual_miscellaneous(if on { NextMiscellaneous::SwitchOn } else { NextMiscellaneous::SwitchOff });
+                        self.cnc.manual_miscellaneous(if on {
+                            NextMiscellaneous::SwitchOn
+                        } else {
+                            NextMiscellaneous::SwitchOff
+                        });
+                        thread::sleep(Duration::from_secs_f64(0.2f64));
                         self.send_status_msg();
                     }
                 }

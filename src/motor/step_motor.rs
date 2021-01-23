@@ -30,25 +30,10 @@ impl StepMotor {
         max_step_speed: u32,
         step_size: f64,
     ) -> Self {
-        let mut name = format!("Stepper p{} d{} ", pull, dir);
-        let ena_gpio = if let Some(ena_pin) = ena {
-            name = format!("{} e{} ", name, ena_pin);
-            Some(Gpio::new().unwrap().get(ena_pin).unwrap().into_output())
-        } else {
-            None
-        };
-
-        let left = if let Some(pin) = end_left {
-            Some(Switch::new(pin, true))
-        } else {
-            None
-        };
-
-        let right = if let Some(pin) = end_right {
-            Some(Switch::new(pin, true))
-        } else {
-            None
-        };
+        let name = format!("Stepper p{} d{} ", pull, dir);
+        let ena_gpio = ena.map(|pin| Gpio::new().unwrap().get(pin).unwrap().into_output());
+        let left = end_left.map(|pin| Switch::new(pin, true));
+        let right = end_right.map(|pin| Switch::new(pin, true));
 
         let mut direction = Gpio::new().unwrap().get(dir).unwrap().into_output();
         direction.set_low();
@@ -72,11 +57,7 @@ impl StepMotor {
             Direction::Left => self.end_switch_left.as_mut(),
             Direction::Right => self.end_switch_right.as_mut(),
         };
-        if let Some(switch) = switch_opt {
-            switch.is_closed()
-        } else {
-            false
-        }
+        switch_opt.map(|switch| switch.is_closed()).unwrap_or(false)
     }
 }
 
@@ -88,7 +69,7 @@ impl Driver for StepMotor {
                 (Direction::Left, true, false) => self.direction.set_high(),
                 (Direction::Right, false, false) => self.direction.set_high(),
                 (Direction::Right, true, true) => self.direction.set_low(),
-                _ => ()
+                _ => (),
             }
             self.current_direction = direction.clone();
         }

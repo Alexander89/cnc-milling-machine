@@ -132,9 +132,7 @@ impl InnerTask {
                     })
                 }
             },
-            Task::ProgramMiscellaneous(ht) => {
-                InnerTask::Miscellaneous(ht)
-            }
+            Task::ProgramMiscellaneous(ht) => InnerTask::Miscellaneous(ht),
             Task::Calibrate(x, y, z) => InnerTask::Calibrate(InnerTaskCalibrate {
                 start_time: SystemTime::now(),
                 from: current_pos,
@@ -160,7 +158,7 @@ pub struct ManualTask {
 
 pub enum ManualInstruction {
     Movement(ManualTask),
-    Miscellaneous(NextMiscellaneous)
+    Miscellaneous(NextMiscellaneous),
 }
 
 #[derive(Debug, Clone)]

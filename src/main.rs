@@ -1,7 +1,7 @@
 mod app;
+mod gnc;
 mod io;
 mod motor;
-mod gnc;
 mod types;
 mod ui;
 

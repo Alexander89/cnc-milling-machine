@@ -5,12 +5,10 @@ import { createUseStyles } from 'react-jss'
 import { Button } from '../components/Button'
 import { obs, ServiceCtx } from '../services'
 import { AvailableProgramsMessage } from '../services/program'
-import { useWidgetStyle } from './style'
 
 export const ProgramSelect = () => {
   const [programs, setPrograms] = useState<AvailableProgramsMessage>()
   const [selected, setSelected] = useState<string>()
-  const { cardStretch, header, content } = useWidgetStyle()
   const { progList } = useStyle()
   const service = useContext(ServiceCtx)
 
@@ -25,9 +23,9 @@ export const ProgramSelect = () => {
     service?.sendCommand({ cmd: 'program', action: 'load', programName })
 
   return (
-    <div className={cardStretch} style={{ width: 450 }}>
+    <div className="cardStretch ProgSelectCardBox">
       <div
-        className={header}
+        className="header"
         style={{ display: 'flex', justifyContent: 'space-between' }}
       >
         Available Programs
@@ -36,7 +34,7 @@ export const ProgramSelect = () => {
         </div>
       </div>
       <div
-        className={content}
+        className="content"
         style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
       >
         <div>Search dir: {programs ? programs.inputDir.join(', ') : '---'}</div>

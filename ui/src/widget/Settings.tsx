@@ -6,11 +6,9 @@ import { InputField, ToggleField } from '../components/form'
 import { Input } from '../components/Input'
 import { AlertCtx, obs, ServiceCtx } from '../services'
 import { Runtime } from '../services/settings'
-import { useWidgetStyle } from './style'
 
 export const Settings = () => {
   const [settings, setSettings] = useState<Runtime | undefined>()
-  const { cardStretch, header, content } = useWidgetStyle()
   const service = useContext(ServiceCtx)
   const { publish } = useContext(AlertCtx)
 
@@ -32,18 +30,12 @@ export const Settings = () => {
   }, [])
 
   return (
-    <div className={cardStretch} style={{ width: 750 }}>
-      <div className={header}>Runtime settings</div>
-      <div className={content}>
+    <div className="cardStretch RuntimeSettingsBox">
+      <div className="header">Runtime settings</div>
+      <div className="content">
         {(settings && (
           <>
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'row',
-                justifyContent: 'space-between'
-              }}
-            >
+            <div className="inputToggleMain">
               Input directories (.)
               <div>
                 <Input

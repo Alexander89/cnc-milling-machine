@@ -4,12 +4,10 @@ import { useState } from 'react'
 import { createUseStyles } from 'react-jss'
 import { obs } from '../services'
 import { ProgramInfo } from '../services/program'
-import { useWidgetStyle } from './style'
 
 export const ProgramMetaData = () => {
   const [programName, setProgramName] = useState<string>()
   const [programs, setPrograms] = useState<ProgramInfo[]>([])
-  const { card, header, content } = useWidgetStyle()
   const { value } = useStyle()
 
   obs('loadProg$', (p) => setProgramName(p?.programName))
@@ -22,7 +20,7 @@ export const ProgramMetaData = () => {
       return <></>
     }
     return (
-      <div className={content}>
+      <div className="content">
         <div className={value}>
           <span>Name:</span> <div>{prog.name}</div>
         </div>
@@ -45,8 +43,8 @@ export const ProgramMetaData = () => {
   }
 
   return (
-    <div className={card} style={{ width: 560 }}>
-      <div className={header}>Program: {programName || ''}</div>
+    <div className="card" style={{ width: 560 }}>
+      <div className="header">Program: {programName || ''}</div>
       {programs && programName && (
         <Program prog={programs.find((p) => p.name === programName)} />
       )}

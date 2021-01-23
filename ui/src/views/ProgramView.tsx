@@ -5,27 +5,22 @@ import { Mode } from '../widget/Mode'
 import { ProgramEditor } from '../widget/ProgramEditor'
 import { ProgramMetaData } from '../widget/ProgramMetaData'
 import { ProgramSelect } from '../widget/ProgramSelect'
-import { useViewStyle } from './style'
 
 export const ProgramView = () => {
   const [status, setStatus] = useState<StatusMessage>()
-  const { main, devModeBanner, header, cardBox } = useViewStyle()
 
   obs('status$', setStatus)
 
   return (
-    <div className={main}>
+    <div className="viewMain">
       {status && status.devMode && (
-        <div className={devModeBanner}>running in dev-mode</div>
+        <div className="viewDevModeBanner">running in dev-mode</div>
       )}
-      <div className={header}>Program Management</div>
-      <div
-        className={cardBox}
-        style={{ alignItems: 'stretch', height: 'calc(100vh - 300px)' }}
-      >
+      <div className="viewHeader">Program Management</div>
+      <div className="viewCardBox ProgramCardBox">
         <ProgramSelect />
         <ProgramEditor />
-        <div>
+        <div className="ProgViewInfo">
           <Mode />
           <ProgramMetaData />
         </div>

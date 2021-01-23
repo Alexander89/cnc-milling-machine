@@ -1,0 +1,275 @@
+.header {
+  font-size: 1.5em;
+  font-weight: 900;
+  padding: 10px 15px;
+  margin-bottom: 15px;
+  background-color: #6d6db0
+}
+.cardBox {
+  display: flex
+}
+.card {
+  margin: 10px 15px;
+  border-radius: 8px;
+  background-color: #ddd;
+  overflow: hidden
+}
+.content {
+  margin: 10px 15px
+}
+.row {
+  display: flex;
+  margin-bottom: 25px,
+}
+.posValue {
+  text-align: center;
+  margin: 0px 5px;
+  font-size: 1.4em;
+  width: 175px;
+}
+.posValue>div {
+  background-color: white;
+  border-radius: 10px;
+  padding: 15px 5px;
+  margin-top: 7px;
+  font-size: 1.6em;
+  font-weight: 900
+}
+.modeValue {
+  flex: 1;
+  text-align: center;
+  padding: 5px 10px;
+  font-size: 1.4em;
+  width: 220px;
+}
+.modeValue>div {
+  background-color: white;
+  border-radius: 10px;
+  padding: 15px 5px;
+  margin-top: 7px;
+  font-size: 1.6em;
+  font-weight: 900;
+}
+.cardStretch {
+  display: flex;
+  margin: 10px 15px;
+  background-color: #ddd;
+  overflow: hidden;
+  border-radius: 8px;
+  flex-direction: column
+}
+
+.inputField {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.inputToggleMain {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+}
+.inputToggleContent {
+  display: flex;
+  flex-direction: row-reverse;
+}
+
+.ToggleField {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.RuntimeSettingsBox {
+  width: 750px;
+}
+
+.SystemSettingsBox {
+  width: 1600px;
+}
+
+.MotorSettingsBox {
+  display: flex;
+  justify-content: space-between
+}
+
+@media only screen and (min-width: 780px) {
+  .hideMobile {
+    display: auto;
+  }
+  .showMobile {
+    display: none;
+  }
+  .main {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+  }
+  .viewMain {
+    flex: 1;
+    height: calc(100vh - 175px);
+    overflow: auto;
+  }
+  .viewDevModeBanner {
+    background-color: red;
+    color: white;
+    padding: 5px 10px;
+    font-size: 1.5em;
+    text-align: center;
+  }
+  .viewHeader {
+    font-size: 1.8em;
+    font-weight: 900;
+    padding: 5px 10px;
+    padding-top: 10px;
+    padding-bottom: 20px;
+    margin-bottom: 10px;
+    background-color: #ddd;
+  }
+  .viewCardBox {
+    display: flex;
+  }
+
+  .SystemGeneralSettings {
+    margin-top: 25px;
+    width: 550px
+  }
+  .ProgramCardBox {
+    align-items: stretch;
+     height: calc(100vh - 300px)
+  }
+  .ProgEditorCardBox {
+    max-height: 100%;
+    width: 560px;
+  }
+  .Editor {
+    flex: 1;
+    width: 100%
+  }
+  .ProgSelectCardBox {
+    width: 450px
+  }
+}
+
+@media only screen and (max-width: 780px) {
+  .main {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .hideMobile {
+    display: none !important;
+  }
+  .showMobile {
+    display: block !important;
+  }
+  .mainMenu {
+    flex: 0 !important;
+  }
+
+  .viewDevModeBanner {
+    background-color: red;
+    color: white;
+    padding: 5px 10px;
+    font-size: 1.2em;
+    text-align: center;
+  }
+  .viewHeader {
+    font-size: 1.3em;
+    font-weight: 900;
+    padding: 5px 10px;
+    padding-top: 10px;
+    padding-bottom: 20px;
+    margin-bottom: 10px;
+    background-color: #ddd;
+  }
+  .viewCardBox {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .header {
+    font-size: 1.2em;
+    font-weight: 900;
+    padding: 10px 15px;
+    margin-bottom: 15px;
+    background-color: #6d6db0
+  }
+  .content {
+    margin: 5px 5px
+  }
+  .card {
+    margin: 5px 5px;
+  }
+  .posValue {
+    margin: 0px 5px 5px;
+    font-size: 1.2em;
+  }
+  .posValue>div {
+    padding: 10px 3px;
+    margin-top: 3px;
+    font-size: 1.2em;
+  }
+  .modeValue {
+    padding: 5px 10px;
+    font-size: 1.2em;
+    width: 220px;
+  }
+  .modeValue>div {
+    padding: 15px 5px;
+    margin-top: 7px;
+    font-size: 1em;
+  }
+
+  .inputField {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .inputToggleMain {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .inputToggleContent {
+    display: flex;
+    flex-direction: row-reverse;
+  }
+
+  .ToggleField {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .RuntimeSettingsBox {
+    width: auto;
+  }
+
+  .SystemSettingsBox {
+    width: auto;
+  }
+
+  .MotorSettingsBox {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between
+  }
+  .ProgEditorCardBox {
+    min-height: 800px;
+    width: auto;
+  }
+  .Editor {
+    height: 800px
+  }
+  .ProgSelectCardBox {
+    font-size: 0.8em
+  }
+  .ProgViewInfo {
+    display: flex;
+    flex-direction: column-reverse;
+  }
+}

@@ -45,7 +45,6 @@ const useStyle = createUseStyles({
   },
   body: {
     height: 120,
-    width: '100%',
     fontSize: '1em',
     backgroundColor: 'white',
     color: 'black',

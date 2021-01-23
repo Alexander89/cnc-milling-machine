@@ -3,21 +3,19 @@ import React, { useState } from 'react'
 import { obs, StatusMessage } from '../services'
 import { Settings } from '../widget/Settings'
 import { System } from '../widget/System'
-import { useViewStyle } from './style'
 
 export const SettingsView = () => {
   const [status, setStatus] = useState<StatusMessage>()
-  const { main, devModeBanner, header, cardBox } = useViewStyle()
 
   obs('status$', setStatus)
 
   return (
-    <div className={main}>
+    <div className="viewMain">
       {status && status.devMode && (
-        <div className={devModeBanner}>running in dev-mode</div>
+        <div className="viewDevModeBanner">running in dev-mode</div>
       )}
-      <div className={header}>Settings</div>
-      <div className={cardBox}>
+      <div className="viewHeader">Settings</div>
+      <div className="viewCardBox">
         <div>
           <Settings />
           <System />

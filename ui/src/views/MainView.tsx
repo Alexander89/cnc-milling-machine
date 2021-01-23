@@ -4,21 +4,18 @@ import { obs, StatusMessage } from '../services'
 import { Controller } from '../widget/Controller'
 import { Mode } from '../widget/Mode'
 import { Position } from '../widget/Position'
-import { useViewStyle } from './style'
 
 export const MainView = () => {
   const [status, setStatus] = useState<StatusMessage>()
-  const { main, devModeBanner, header, cardBox } = useViewStyle()
-
   obs('status$', setStatus)
 
   return (
-    <div className={main}>
+    <div className="viewMain">
       {status && status.devMode && (
-        <div className={devModeBanner}>running in dev-mode</div>
+        <div className="viewDevModeBanner">running in dev-mode</div>
       )}
-      <div className={header}>System monitoring / control</div>
-      <div className={cardBox}>
+      <div className="viewHeader">System monitoring / control</div>
+      <div className="viewCardBox">
         <div>
           <Position />
           <Controller />

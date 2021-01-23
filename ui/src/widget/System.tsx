@@ -5,11 +5,9 @@ import { Button } from '../components/Button'
 import { InputField, InputToggle, ToggleField } from '../components/form'
 import { AlertCtx, obs, ServiceCtx } from '../services'
 import { System as SystemSettings, MotorSettings } from '../services/settings'
-import { useWidgetStyle } from './style'
 
 export const System = () => {
   const [settings, setSettings] = useState<SystemSettings | undefined>()
-  const { cardStretch, header, content } = useWidgetStyle()
   const service = useContext(ServiceCtx)
   const { publish } = useContext(AlertCtx)
 
@@ -33,15 +31,15 @@ export const System = () => {
   }, [])
 
   return (
-    <div className={cardStretch} style={{ width: 1600 }}>
-      <div className={header}>
+    <div className="cardStretch SystemSettingsBox">
+      <div className="header">
         System Settings{' '}
         <span style={{ color: 'red', fontSize: '20' }}>(requires restart)</span>
       </div>
-      <div className={content}>
+      <div className="content">
         {(settings && (
           <>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <div className="MotorSettingsBox">
               <MotorBox
                 title="Motor X"
                 motor={settings.motorX}
@@ -103,7 +101,7 @@ export const System = () => {
                 }
               />
             </div>
-            <div style={{ marginTop: 25, width: 550 }}>
+            <div className="SystemGeneralSettings">
               <InputToggle
                 title="Calibrate Z Gpio Pin"
                 type="number"

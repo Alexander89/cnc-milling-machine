@@ -1,5 +1,5 @@
 // eslint-disable-next-line no-use-before-define
-import React from 'react'
+import React, { useState } from 'react'
 import { createUseStyles } from 'react-jss'
 import { Mode } from '../types'
 
@@ -9,6 +9,7 @@ type Props = {
 }
 
 export const Menu = ({ mode, onChanged }: Props) => {
+  const [visible, setVisible] = useState(false)
   const { main, header, bottoms, active } = useStyle()
   const Entry = ({ m, title }: { m: Mode; title: string }) => (
     <div onClick={() => onChanged(m)} className={mode === m ? active : ''}>
@@ -17,14 +18,22 @@ export const Menu = ({ mode, onChanged }: Props) => {
   )
 
   return (
-    <div className={main}>
-      <div className={header}>Rusty-CNC</div>
-      <div className={bottoms}>
+    <div className={`${main} mainMenu`}>
+      <div className={header} onClick={() => setVisible(!visible)}>Rusty-CNC</div>
+      <div className={`${bottoms} hideMobile`}>
         <Entry m={'main'} title={'Monitoring'} />
         <Entry m={'program'} title={'Jobs'} />
         <Entry m={'calibrate'} title={'Calibrate'} />
         <Entry m={'settings'} title={'Settings'} />
       </div>
+      {visible && (
+        <div className={`${bottoms} showMobile`}>
+          <Entry m={'main'} title={'Monitoring'} />
+          <Entry m={'program'} title={'Jobs'} />
+          <Entry m={'calibrate'} title={'Calibrate'} />
+          <Entry m={'settings'} title={'Settings'} />
+        </div>
+      )}
     </div>
   )
 }

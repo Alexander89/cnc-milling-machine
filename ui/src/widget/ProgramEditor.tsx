@@ -1,13 +1,11 @@
 // eslint-disable-next-line no-use-before-define
 import * as React from 'react'
 import { useContext, useState } from 'react'
-// import { createUseStyles } from 'react-jss'
 import { Button } from '../components/Button'
 import { Editor } from '../components/Editor'
 import { Input } from '../components/Input'
 import { ToggleButton } from '../components/ToggleButton'
 import { AlertCtx, obs, ServiceCtx } from '../services'
-import { useWidgetStyle } from './style'
 
 export const ProgramEditor = () => {
   const [programName, setProgramName] = useState<string>()
@@ -16,7 +14,6 @@ export const ProgramEditor = () => {
   const [program, setProgram] = useState<string>()
   const [invertZ, setInvertZ] = useState(false)
   const [scale, setScale] = useState(1)
-  const { cardStretch, header, content } = useWidgetStyle()
   const service = useContext(ServiceCtx)
   const { publish } = useContext(AlertCtx)
 
@@ -83,9 +80,9 @@ export const ProgramEditor = () => {
   }
 
   return (
-    <div className={cardStretch} style={{ maxHeight: '100%', width: 560 }}>
+    <div className="cardStretch ProgEditorCardBox">
       <div
-        className={header}
+        className="header"
         style={{ display: 'flex', justifyContent: 'space-between' }}
       >
         Program: {newProg ? '' : programName || ''}
@@ -104,10 +101,10 @@ export const ProgramEditor = () => {
         </div>
       </div>
       <div
-        className={content}
+        className="content"
         style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
       >
-        <div style={{ flex: '1', width: '100%' }}>
+        <div className="Editor">
           <Editor
             style={{ flex: '1' }}
             file={

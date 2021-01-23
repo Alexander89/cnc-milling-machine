@@ -38,15 +38,9 @@ export const InputToggle = (props: InputToggleProps) => {
   }
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'row',
-        justifyContent: 'space-between'
-      }}
-    >
+    <div className="inputToggleMain">
       {props.title}
-      <div style={{ display: 'flex', flexDirection: 'row-reverse' }}>
+      <div className="inputToggleContent">
         <Input
           value={props.value || props.defaultValue}
           onChanged={onValueChanged}

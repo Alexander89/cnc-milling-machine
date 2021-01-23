@@ -5,17 +5,16 @@
   "main": "index.js",
   "scripts": {
     "preinstall": "npx npm-force-resolutions",
-    "test": "echo \"Error: no test specified\" && exit 1",
     "prestart": "tsc --noEmit",
     "start": "parcel --host 0.0.0.0 --out-dir dist/debug src/index.html",
-    "build": "npm run monaco:build:release && parcel build --out-dir ../static src/index.html",
+    "build": "npm run monaco:build:release && parcel build --no-source-maps --no-autoinstall --out-dir ../static src/index.html",
     "lint": "eslint ./src/**/* --fix",
     "monaco:build:debug": "npm run monaco:build-json dist/debug && npm run monaco:build-worker dist/debug",
     "monaco:build:release": "npm run monaco:build-json ../static && npm run monaco:build-worker ../static",
     "monaco:build-json": "parcel build node_modules/monaco-editor/esm/vs/language/json/json.worker.js --no-source-maps --out-dir ",
     "monaco:build-worker": "parcel build node_modules/monaco-editor/esm/vs/editor/editor.worker.js --no-source-maps --out-dir "
   },
-  "author": "",
+  "author": "gh_Alexander89",
   "license": "ISC",
   "resolutions": {
     "node-forge": "0.10.0"

@@ -1,7 +1,6 @@
 // eslint-disable-next-line no-use-before-define
 import React, { useEffect, useState } from 'react'
 import { render } from 'react-dom'
-import { createUseStyles } from 'react-jss'
 import { AlertBox } from './components/AlertBox'
 import { InfoBar } from './components/InfoBar'
 import { Menu } from './components/Menu'
@@ -17,15 +16,18 @@ import { MainView } from './views/MainView'
 import { ProgramView } from './views/ProgramView'
 import { SettingsView } from './views/SettingsView'
 import { CalibrateView } from './views/CalibrateView'
+import './responsive.css'
 
 export const Main = () => {
-  const { main } = useStyle()
   const [service, setService] = useState<Service>()
-  const [mode, setMode] = useState<Mode>('main')
-  useEffect(() => {
+  const [mode, setMode] = useState<Mode>('program')
+
+  const connect = () => {
     const ws = new WebSocket(`ws://${window.location.hostname}:1506/ws`)
     ws.onopen = (_) => setService(mkServiceCtx(ws))
-  }, [])
+    ws.addEventListener('close', () => setTimeout(connect, 1000))
+  }
+  useEffect(() => connect(), [])
 
   const View = () => {
     switch (mode) {
@@ -45,7 +47,7 @@ export const Main = () => {
   return (
     <ServiceCtx.Provider value={service}>
       <AlertCtx.Provider value={alertContext}>
-        <div className={main}>
+        <div className="main">
           <AlertBox />
           <Menu mode={mode} onChanged={setMode} />
           <div style={{ width: '100%', height: '100vh' }}>
@@ -57,15 +59,5 @@ export const Main = () => {
     </ServiceCtx.Provider>
   )
 }
-
-const useStyle = createUseStyles({
-  main: {
-    position: 'relative',
-    width: '100vw',
-    height: '100vh',
-    overflow: 'hidden',
-    display: 'flex'
-  }
-})
 
 render(<Main />, document.getElementById('root'))

@@ -11,13 +11,7 @@ type ToggleFieldProps = {
 }
 
 export const ToggleField = (props: ToggleFieldProps) => (
-  <div
-    style={{
-      display: 'flex',
-      flexDirection: 'row',
-      justifyContent: 'space-between'
-    }}
-  >
+  <div className="ToggleField">
     {props.title}
     <div>
       <ToggleButton

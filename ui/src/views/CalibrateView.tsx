@@ -1,23 +1,20 @@
 // eslint-disable-next-line no-use-before-define
 import React, { useState } from 'react'
 import { obs, StatusMessage } from '../services'
-import { useViewStyle } from './style'
 
 export const CalibrateView = () => {
   const [status, setStatus] = useState<StatusMessage>()
-  const { main, devModeBanner, header, cardBox } = useViewStyle()
-
   obs('status$', setStatus)
 
   return (
-    <div className={main}>
+    <div className="viewMain">
       {status && status.devMode && (
-        <div className={devModeBanner}>running in dev-mode</div>
+        <div className="viewDevModeBanner">running in dev-mode</div>
       )}
-      <div className={header} style={{ display: 'block' }}>
+      <div className="viewHeader" style={{ display: 'block' }}>
         Calibrate
       </div>
-      <div className={cardBox}>
+      <div className="viewCardBox">
         <div>coming soon</div>
       </div>
     </div>

@@ -1,3 +1,4 @@
+#![allow(clippy::too_many_arguments)]
 use crate::app::settings::MotorSettings;
 use crate::types::Location;
 use actix::prelude::{Message, Recipient};

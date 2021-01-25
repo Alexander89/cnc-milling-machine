@@ -1,3 +1,4 @@
+#![allow(clippy::option_map_unit_fn)]
 use super::App;
 
 use crate::ui::types::{

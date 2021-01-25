@@ -106,7 +106,7 @@ impl App {
                     if let Some(sel_prog) = self.selected_program.to_owned() {
                         self.start_program(&sel_prog, false, 1.0);
                     } else {
-                        self.error(format!("No Program selected"));
+                        self.error("No Program selected".to_string());
                     }
                 }
                 EventType::AxisChanged(Axis::LeftStickX, value, _) => {
@@ -188,15 +188,15 @@ impl App {
                 EventType::ButtonPressed(Button::North, _) => {
                     let pos = self.cnc.get_pos();
                     if pos.x == 0.0 && pos.y == 0.0 {
-                        self.info(format!("reset all (x, y, z)"));
+                        self.info("reset all (x, y, z)".to_string());
                         self.cnc.reset();
                     } else {
-                        self.info(format!("reset only plane move (x, y) -- Reset again without moving to reset the z axis as well"));
+                        self.info("reset only plane move (x, y) -- Reset again without moving to reset the z axis as well".to_string());
                         self.cnc.set_pos(Location::new(0.0, 0.0, pos.z));
                     }
                 }
                 EventType::ButtonPressed(Button::East, _) => {
-                    self.info(format!("calibrate"));
+                    self.info("calibrate".to_string());
                     self.cnc.calibrate(
                         CalibrateType::None,
                         CalibrateType::None,
@@ -217,10 +217,10 @@ impl App {
     pub fn program_mode(&mut self) -> bool {
         while let Some(Event { event, .. }) = self.gilrs.next_event() {
             if let EventType::ButtonReleased(Button::Select, _) = event {
-                self.info(format!("Cancel current job"));
+                self.info("Cancel current job".to_string());
                 self.set_current_mode(Mode::Manual);
                 if self.cnc.cancel_task().is_err() {
-                    self.error(format!("cancel did not work"));
+                    self.error("cancel did not work".to_string());
                     panic!("cancel did not work!");
                 };
             }
@@ -262,7 +262,7 @@ impl App {
             if let EventType::ButtonReleased(Button::Select, _) = event {
                 self.set_current_mode(Mode::Manual);
                 if self.cnc.cancel_task().is_err() {
-                    self.error(format!("cancel did not work"));
+                    self.error("cancel did not work".to_string());
                     panic!("cancel did not work!");
                 };
             }
@@ -286,9 +286,9 @@ impl App {
 
         true
     }
-    pub fn start_program(&mut self, program_name: &String, invert_z: bool, scale: f64) -> bool {
+    pub fn start_program(&mut self, program_name: &str, invert_z: bool, scale: f64) -> bool {
         if !self.calibrated {
-            self.warning(format!("start program without calibration"));
+            self.warning("start program without calibration".to_string());
         }
         self.set_selected_program(Some(program_name.to_owned()));
         if let Ok(load_prog) = Gnc::new(
@@ -304,7 +304,7 @@ impl App {
             self.set_current_mode(Mode::Program);
             true
         } else {
-            self.error(format!("program is not able to load"));
+            self.error("program is not able to load".to_string());
             false
         }
     }
@@ -312,7 +312,7 @@ impl App {
         self.set_selected_program(None);
         self.set_current_mode(Mode::Manual);
         if self.cnc.cancel_task().is_err() {
-            self.error(format!("cancel did not work"));
+            self.error("cancel did not work".to_string());
             panic!("cancel did not work!");
         };
     }

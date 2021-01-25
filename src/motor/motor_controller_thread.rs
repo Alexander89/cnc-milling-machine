@@ -1,3 +1,4 @@
+#![allow(clippy::too_many_arguments)]
 use super::task::{
     CalibrateType, InnerTask, InnerTaskCalibrate, InnerTaskProduction, ManualInstruction, Task,
 };

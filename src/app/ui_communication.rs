@@ -268,8 +268,8 @@ impl App {
                     motor_x: self.settings.motor_x.clone(),
                     motor_y: self.settings.motor_y.clone(),
                     motor_z: self.settings.motor_z.clone(),
-                    calibrate_z_gpio: self.settings.calibrate_z_gpio.clone(),
-                    on_off_gpio: self.settings.on_off_gpio.clone(),
+                    calibrate_z_gpio: self.settings.calibrate_z_gpio,
+                    on_off_gpio: self.settings.on_off_gpio,
                     switch_on_off_delay: self.settings.switch_on_off_delay,
                 },
             })

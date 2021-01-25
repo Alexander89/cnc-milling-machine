@@ -1,3 +1,4 @@
+#![allow(clippy::too_many_arguments)]
 use super::{Driver, Result};
 use crate::io::Switch;
 use crate::types::Direction;

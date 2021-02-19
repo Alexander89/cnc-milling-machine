@@ -248,8 +248,8 @@ impl Gnc {
             0 | 1 | 2 | 5 => Some(NextInstruction::Miscellaneous(NextMiscellaneous::SwitchOff)),
             3 | 4 => Some(NextInstruction::Miscellaneous(NextMiscellaneous::SwitchOn)),
             6 => Some(NextInstruction::Miscellaneous(
-                NextMiscellaneous::ToolChange( code.value_for('T').unwrap_or(1.0f32) as i32 ) )
-            ),
+                NextMiscellaneous::ToolChange(code.value_for('T').unwrap_or(1.0f32) as i32),
+            )),
 
             _ => Some(NextInstruction::NotSupported(format!(
                 "M code - {}",

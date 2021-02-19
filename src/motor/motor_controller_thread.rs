@@ -1,9 +1,9 @@
 #![allow(clippy::too_many_arguments)]
+use super::motor_controller::{ExternalInput, ExternalInputRequest};
 use super::task::{
     CalibrateType, InnerTask, InnerTaskCalibrate, InnerTaskProduction, ManualInstruction, Task,
 };
 use super::Motor;
-use super::motor_controller::{ExternalInput, ExternalInputRequest};
 use crate::gnc::NextMiscellaneous;
 use crate::io::{Actor, Switch};
 use crate::types::{
@@ -15,7 +15,7 @@ use std::{
     sync::Mutex,
     sync::{
         atomic::{AtomicBool, AtomicI64, AtomicU32, Ordering::Relaxed},
-        mpsc::{Sender, Receiver},
+        mpsc::{Receiver, Sender},
         Arc,
     },
     thread,
@@ -128,7 +128,7 @@ impl MotorControllerThread {
         loop {
             // read it but drop it to avoid a command jam after program or calibration completed
             let next_manual_task = self.manual_instruction_receiver.try_recv();
-            if self.state.load(Relaxed) != program_task && self.state.load(Relaxed) != calibrate  {
+            if self.state.load(Relaxed) != program_task && self.state.load(Relaxed) != calibrate {
                 match next_manual_task {
                     Ok(ManualInstruction::Movement(next_task)) => {
                         let max_speed = next_task.speed;
@@ -151,7 +151,7 @@ impl MotorControllerThread {
                                 self.switch_off();
                                 self.current_task = None;
                             }
-                            _ => ()
+                            _ => (),
                         }
                     }
                     Err(_) => (),
@@ -171,9 +171,9 @@ impl MotorControllerThread {
             if self.external_input_required {
                 // try_recv() => sleep + continue; To keep the cancel task in the loop
                 match self.external_input_receiver.try_recv() {
-                    Ok(ExternalInput::ToolChanged) |
-                    Ok(ExternalInput::SpeedChanged) =>
-                        self.external_input_required = false,
+                    Ok(ExternalInput::ToolChanged) | Ok(ExternalInput::SpeedChanged) => {
+                        self.external_input_required = false
+                    }
                     Ok(ExternalInput::StockTurned) => {
                         // check fix points somehow ??
                         self.external_input_required = false;
@@ -442,14 +442,17 @@ impl MotorControllerThread {
                     }
                     NextMiscellaneous::ToolChange(tool) if self.external_input_enabled => {
                         self.external_input_required = true;
-                        self.external_input_request_sender.send(ExternalInputRequest::ChangeTool(*tool)).unwrap();
+                        self.external_input_request_sender
+                            .send(ExternalInputRequest::ChangeTool(*tool))
+                            .unwrap();
                     }
                     NextMiscellaneous::SpeedChange(speed) if self.external_input_enabled => {
                         self.external_input_required = true;
-                        self.external_input_request_sender.send(ExternalInputRequest::ChangeSpeed(*speed)).unwrap();
+                        self.external_input_request_sender
+                            .send(ExternalInputRequest::ChangeSpeed(*speed))
+                            .unwrap();
                     }
-                    NextMiscellaneous::ToolChange(_)
-                    | NextMiscellaneous::SpeedChange(_) => ()
+                    NextMiscellaneous::ToolChange(_) | NextMiscellaneous::SpeedChange(_) => (),
                 },
                 None => match self.task_query.lock() {
                     Ok(ref mut lock) if lock.len() > q_ptr => {

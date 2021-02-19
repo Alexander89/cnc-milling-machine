@@ -12,7 +12,7 @@ use std::{
     sync::Mutex,
     sync::{
         atomic::{AtomicBool, AtomicI64, AtomicU32, Ordering::Relaxed},
-        mpsc::{channel, Sender, Receiver},
+        mpsc::{channel, Receiver, Sender},
         Arc,
     },
     thread,
@@ -23,7 +23,7 @@ pub enum ExternalInput {
     ToolChanged,
     NewStock,
     StockTurned,
-    SpeedChanged
+    SpeedChanged,
 }
 
 #[derive(Debug, PartialEq)]
@@ -47,6 +47,7 @@ pub struct MotorController {
     z: Arc<AtomicI64>,
     on_off_state: Arc<AtomicBool>,
 }
+
 #[allow(clippy::too_many_arguments)]
 impl MotorController {
     pub fn new(

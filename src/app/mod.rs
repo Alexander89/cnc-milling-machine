@@ -5,7 +5,10 @@ mod ui_communication;
 
 use crate::gnc::Gnc;
 use crate::io::{Actor, Switch};
-use crate::motor::{motor_controller::{MotorController, ExternalInput, ExternalInputRequest}, MockMotor, Motor, StepMotor};
+use crate::motor::{
+    motor_controller::{ExternalInput, ExternalInputRequest, MotorController},
+    MockMotor, Motor, StepMotor,
+};
 use crate::types::Location;
 use crate::ui::types::{Mode, WsCommandsFrom, WsMessages};
 
@@ -67,13 +70,18 @@ impl App {
 
         // init external_input channel
         let (external_input_sender, external_input_receiver) = mpsc::channel::<ExternalInput>();
-        let (external_input_request_sender, external_input_request_receiver) = mpsc::channel::<ExternalInputRequest>();
+        let (external_input_request_sender, external_input_request_receiver) =
+            mpsc::channel::<ExternalInputRequest>();
 
         // return tuple with app and ui channel
         let mut app = App {
             available_progs: App::read_available_progs(&settings.input_dir),
             external_input_enabled: settings.external_input_enabled,
-            cnc: App::create_cnc_from_settings(&settings, external_input_receiver, external_input_request_sender),
+            cnc: App::create_cnc_from_settings(
+                &settings,
+                external_input_receiver,
+                external_input_request_sender,
+            ),
             pool,
             settings,
             gilrs,
@@ -101,7 +109,7 @@ impl App {
     fn create_cnc_from_settings(
         settings: &Settings,
         external_input_receiver: mpsc::Receiver<ExternalInput>,
-        external_input_request_sender: mpsc::Sender<ExternalInputRequest>
+        external_input_request_sender: mpsc::Sender<ExternalInputRequest>,
     ) -> MotorController {
         let (on_off, z_calibrate, motor_x, motor_y, motor_z) = if settings.dev_mode {
             (

@@ -54,7 +54,7 @@ impl StepMotor {
         }
     }
     fn is_blocked(&mut self) -> bool {
-        let switch_opt = match (self.current_direction, self.invert_dir) {
+        let switch_opt = match (self.current_direction.clone(), self.invert_dir) {
             (Direction::Left, false) => self.end_switch_left.as_mut(),
             (Direction::Left, true) => self.end_switch_right.as_mut(),
             (Direction::Right, false) => self.end_switch_right.as_mut(),

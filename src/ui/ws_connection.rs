@@ -94,8 +94,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsConnection {
             Ok(ws::Message::Nop) => (),
             Ok(ws::Message::Text(s)) => {
                 if let Ok(cmd) = serde_json::from_str::<WsCommands>(&s) {
-                    self.system_addr
-                        .do_send(WsCommandsFrom(self.id, cmd));
+                    self.system_addr.do_send(WsCommandsFrom(self.id, cmd));
                 } else {
                     println!("got unknown message {}", s);
                 }

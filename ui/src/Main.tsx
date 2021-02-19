@@ -20,7 +20,7 @@ import './responsive.css'
 
 export const Main = () => {
   const [service, setService] = useState<Service>()
-  const [mode, setMode] = useState<Mode>('program')
+  const [mode, setMode] = useState<Mode>('main')
 
   const connect = () => {
     const ws = new WebSocket(`ws://${window.location.hostname}:1506/ws`)

@@ -438,12 +438,16 @@ impl MotorControllerThread {
 
     fn switch_on(&mut self) {
         println!("switch on now");
-        if let Some(actor) = self.on_off.as_mut() { actor.set_high() }
+        if let Some(actor) = self.on_off.as_mut() {
+            actor.set_high()
+        }
         self.on_off_state.store(true, Relaxed);
     }
     fn switch_off(&mut self) {
         println!("switch off now");
-        if let Some(actor) = self.on_off.as_mut() { actor.set_low() }
+        if let Some(actor) = self.on_off.as_mut() {
+            actor.set_low()
+        }
 
         self.on_off_state.store(false, Relaxed);
     }

@@ -50,7 +50,7 @@ export const AlertBox = () => {
 const useStyle = createUseStyles({
   alertWrapper: {
     zIndex: 1000,
-    position: 'absolute',
+    position: 'fixed',
     top: 0,
     bottom: 0,
     left: 0,

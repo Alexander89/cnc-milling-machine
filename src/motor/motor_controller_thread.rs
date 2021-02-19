@@ -3,6 +3,7 @@ use super::task::{
     CalibrateType, InnerTask, InnerTaskCalibrate, InnerTaskProduction, ManualInstruction, Task,
 };
 use super::Motor;
+use super::motor_controller::{ExternalInput, ExternalInputRequest};
 use crate::gnc::NextMiscellaneous;
 use crate::io::{Actor, Switch};
 use crate::types::{
@@ -14,7 +15,7 @@ use std::{
     sync::Mutex,
     sync::{
         atomic::{AtomicBool, AtomicI64, AtomicU32, Ordering::Relaxed},
-        mpsc::Receiver,
+        mpsc::{Sender, Receiver},
         Arc,
     },
     thread,
@@ -45,6 +46,11 @@ pub struct MotorControllerThread {
     on_off_state: Arc<AtomicBool>,
     on_off: Option<Actor>,
     switch_on_off_delay: f64,
+
+    external_input_enabled: bool,
+    external_input_required: bool,
+    external_input_receiver: Receiver<ExternalInput>,
+    external_input_request_sender: Sender<ExternalInputRequest>,
 }
 
 impl MotorControllerThread {
@@ -64,6 +70,9 @@ impl MotorControllerThread {
         cancel_task: Arc<AtomicBool>,
         task_query: Arc<Mutex<Vec<Task>>>,
         manual_instruction_receiver: Receiver<ManualInstruction>,
+        external_input_enabled: bool,
+        external_input_receiver: Receiver<ExternalInput>,
+        external_input_request_sender: Sender<ExternalInputRequest>,
         on_off_state: Arc<AtomicBool>,
         on_off: Option<Actor>,
         switch_on_off_delay: f64,
@@ -87,6 +96,10 @@ impl MotorControllerThread {
             on_off_state,
             on_off,
             switch_on_off_delay,
+            external_input_enabled,
+            external_input_required: false,
+            external_input_receiver,
+            external_input_request_sender,
         }
     }
     pub fn get_pos(&self) -> Location<i64> {
@@ -108,33 +121,44 @@ impl MotorControllerThread {
         let mut curve_close_to_destination = false;
         let mut last_distance_to_destination = 100;
         let mut q_ptr = 0;
+
+        let program_task: u32 = MachineState::ProgramTask.into();
+        let calibrate: u32 = MachineState::Calibrate.into();
+
         loop {
-            match self.manual_instruction_receiver.try_recv() {
-                Ok(ManualInstruction::Movement(next_task)) => {
-                    let max_speed = next_task.speed;
-                    let task = Task::Manual(next_task);
-                    self.state.store(task.machine_state().into(), Relaxed);
-                    self.current_task = Some(InnerTask::from_task(
-                        task,
-                        self.get_pos(),
-                        self.get_step_sizes(),
-                        max_speed,
-                    ));
-                }
-                Ok(ManualInstruction::Miscellaneous(next_miscellaneous)) => {
-                    match next_miscellaneous {
-                        NextMiscellaneous::SwitchOn => {
-                            self.switch_on();
-                            self.current_task = None;
-                        }
-                        NextMiscellaneous::SwitchOff => {
-                            self.switch_off();
-                            self.current_task = None;
+            // read it but drop it to avoid a command jam after program or calibration completed
+            let next_manual_task = self.manual_instruction_receiver.try_recv();
+            if self.state.load(Relaxed) != program_task && self.state.load(Relaxed) != calibrate  {
+                match next_manual_task {
+                    Ok(ManualInstruction::Movement(next_task)) => {
+                        let max_speed = next_task.speed;
+                        let task = Task::Manual(next_task);
+                        self.state.store(task.machine_state().into(), Relaxed);
+                        self.current_task = Some(InnerTask::from_task(
+                            task,
+                            self.get_pos(),
+                            self.get_step_sizes(),
+                            max_speed,
+                        ));
+                    }
+                    Ok(ManualInstruction::Miscellaneous(next_miscellaneous)) => {
+                        match next_miscellaneous {
+                            NextMiscellaneous::SwitchOn => {
+                                self.switch_on();
+                                self.current_task = None;
+                            }
+                            NextMiscellaneous::SwitchOff => {
+                                self.switch_off();
+                                self.current_task = None;
+                            }
+                            _ => ()
                         }
                     }
-                }
-                Err(_) => (),
-            };
+                    Err(_) => (),
+                };
+            }
+
+            // check flag to cancel current task
             if self.cancel_task.load(Relaxed) {
                 self.cancel_task.store(false, Relaxed);
                 self.current_task = None;
@@ -142,6 +166,29 @@ impl MotorControllerThread {
                 self.steps_done.store(0, Relaxed);
                 println!("MotorControllerThread: cancel task");
             };
+
+            // check flag if machine wait for external input (tool change, new stock, turn stock, speed changed, ...)
+            if self.external_input_required {
+                // try_recv() => sleep + continue; To keep the cancel task in the loop
+                match self.external_input_receiver.try_recv() {
+                    Ok(ExternalInput::ToolChanged) |
+                    Ok(ExternalInput::SpeedChanged) =>
+                        self.external_input_required = false,
+                    Ok(ExternalInput::StockTurned) => {
+                        // check fix points somehow ??
+                        self.external_input_required = false;
+                    }
+                    Ok(ExternalInput::NewStock) => {
+                        // calibrate height?
+                        self.external_input_required = false;
+                    }
+                    Err(_) => {
+                        thread::sleep(Duration::new(0, 10_000));
+                        continue;
+                    }
+                }
+            }
+
             match &self.current_task {
                 Some(InnerTask::Production(InnerTaskProduction {
                     start_time,
@@ -393,6 +440,16 @@ impl MotorControllerThread {
                         thread::sleep(Duration::from_secs_f64(self.switch_on_off_delay));
                         self.current_task = None;
                     }
+                    NextMiscellaneous::ToolChange(tool) if self.external_input_enabled => {
+                        self.external_input_required = true;
+                        self.external_input_request_sender.send(ExternalInputRequest::ChangeTool(*tool)).unwrap();
+                    }
+                    NextMiscellaneous::SpeedChange(speed) if self.external_input_enabled => {
+                        self.external_input_required = true;
+                        self.external_input_request_sender.send(ExternalInputRequest::ChangeSpeed(*speed)).unwrap();
+                    }
+                    NextMiscellaneous::ToolChange(_)
+                    | NextMiscellaneous::SpeedChange(_) => ()
                 },
                 None => match self.task_query.lock() {
                     Ok(ref mut lock) if lock.len() > q_ptr => {
@@ -415,6 +472,8 @@ impl MotorControllerThread {
                         let idle: u32 = MachineState::Idle.into();
 
                         if self.state.load(Relaxed) != idle {
+                            self.steps_todo.store(0, Relaxed);
+                            self.steps_done.store(0, Relaxed);
                             self.state.store(idle, Relaxed);
                         }
                         #[allow(clippy::drop_ref)]

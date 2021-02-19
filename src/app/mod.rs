@@ -5,7 +5,7 @@ mod ui_communication;
 
 use crate::gnc::Gnc;
 use crate::io::{Actor, Switch};
-use crate::motor::{motor_controller::MotorController, MockMotor, Motor, StepMotor};
+use crate::motor::{motor_controller::{MotorController, ExternalInput, ExternalInputRequest}, MockMotor, Motor, StepMotor};
 use crate::types::Location;
 use crate::ui::types::{Mode, WsCommandsFrom, WsMessages};
 
@@ -43,6 +43,9 @@ pub struct App {
     pub display_counter: u32,
     pub steps_todo: i64,
     pub steps_done: i64,
+    pub external_input_enabled: bool,
+    pub external_input_sender: mpsc::Sender<ExternalInput>,
+    pub external_input_request_receiver: mpsc::Receiver<ExternalInputRequest>,
 }
 
 impl App {
@@ -62,10 +65,15 @@ impl App {
         let (ui_data_sender, ui_data_receiver) = unbounded::<WsMessages>();
         let (ui_cmd_sender, ui_cmd_receiver) = unbounded::<WsCommandsFrom>();
 
+        // init external_input channel
+        let (external_input_sender, external_input_receiver) = mpsc::channel::<ExternalInput>();
+        let (external_input_request_sender, external_input_request_receiver) = mpsc::channel::<ExternalInputRequest>();
+
         // return tuple with app and ui channel
         let mut app = App {
             available_progs: App::read_available_progs(&settings.input_dir),
-            cnc: App::create_cnc_from_settings(&settings),
+            external_input_enabled: settings.external_input_enabled,
+            cnc: App::create_cnc_from_settings(&settings, external_input_receiver, external_input_request_sender),
             pool,
             settings,
             gilrs,
@@ -85,10 +93,16 @@ impl App {
             freeze_x: false,
             freeze_y: false,
             slow_control: false,
+            external_input_sender,
+            external_input_request_receiver,
         };
         app.run(ui_data_receiver, ui_cmd_sender);
     }
-    fn create_cnc_from_settings(settings: &Settings) -> MotorController {
+    fn create_cnc_from_settings(
+        settings: &Settings,
+        external_input_receiver: mpsc::Receiver<ExternalInput>,
+        external_input_request_sender: mpsc::Sender<ExternalInputRequest>
+    ) -> MotorController {
         let (on_off, z_calibrate, motor_x, motor_y, motor_z) = if settings.dev_mode {
             (
                 settings
@@ -170,6 +184,9 @@ impl App {
             motor_y,
             motor_z,
             z_calibrate,
+            settings.external_input_enabled,
+            external_input_receiver,
+            external_input_request_sender,
         )
     }
     fn gamepad_connected(gilrs: &Gilrs) -> bool {

@@ -35,6 +35,8 @@ pub struct Settings {
     pub invert_z: bool,
     pub show_console_output: bool,
     pub console_pos_update_reduce: u32,
+    #[serde(default)]
+    pub external_input_enabled: bool,
 }
 
 impl Default for Settings {
@@ -82,6 +84,7 @@ impl Default for Settings {
             invert_z: false,
             show_console_output: false,
             console_pos_update_reduce: 50u32,
+            external_input_enabled: false,
         }
     }
 }

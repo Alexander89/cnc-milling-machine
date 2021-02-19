@@ -86,6 +86,8 @@ pub struct Next3dMovement {
 pub enum NextMiscellaneous {
     SwitchOn,
     SwitchOff,
+    ToolChange(i32),
+    SpeedChange(f64),
 }
 
 #[derive(Debug, Clone)]
@@ -243,8 +245,12 @@ impl Gnc {
     /// execute Machine and Program codes
     fn parse_m_code(&mut self, code: GCode) -> Option<NextInstruction> {
         match code.major_number() {
-            0 | 1 | 5 => Some(NextInstruction::Miscellaneous(NextMiscellaneous::SwitchOff)),
+            0 | 1 | 2 | 5 => Some(NextInstruction::Miscellaneous(NextMiscellaneous::SwitchOff)),
             3 | 4 => Some(NextInstruction::Miscellaneous(NextMiscellaneous::SwitchOn)),
+            6 => Some(NextInstruction::Miscellaneous(
+                NextMiscellaneous::ToolChange( code.value_for('T').unwrap_or(1.0f32) as i32 ) )
+            ),
+
             _ => Some(NextInstruction::NotSupported(format!(
                 "M code - {}",
                 code.major_number()
@@ -269,18 +275,18 @@ impl Gnc {
         match self.coordinations {
             Coordinations::Relative => self.rel_pos(x, y, z),
             Coordinations::Absolute => Location {
-                x: self.get_or_default(x, self.current_position.x, false) - self.current_position.x,
-                y: self.get_or_default(y, self.current_position.y, false) - self.current_position.y,
-                z: self.get_or_default(z, self.current_position.z, self.invert_z)
+                x: get_or_default(x, self.current_position.x, false) - self.current_position.x,
+                y: get_or_default(y, self.current_position.y, false) - self.current_position.y,
+                z: get_or_default(z, self.current_position.z, self.invert_z)
                     - self.current_position.z,
             },
         }
     }
     fn rel_pos(&self, x: Option<f32>, y: Option<f32>, z: Option<f32>) -> Location<f64> {
         Location {
-            x: self.get_or_default(x, 0.0, false),
-            y: self.get_or_default(y, 0.0, false),
-            z: self.get_or_default(z, 0.0, self.invert_z),
+            x: get_or_default(x, 0.0, false),
+            y: get_or_default(y, 0.0, false),
+            z: get_or_default(z, 0.0, self.invert_z),
         }
     }
 
@@ -290,31 +296,33 @@ impl Gnc {
             Coordinations::Relative => self.current_position = self.rel_pos(x, y, z),
             Coordinations::Absolute => {
                 self.current_position = Location {
-                    x: self.get_or_default(x, self.current_position.x, false),
-                    y: self.get_or_default(y, self.current_position.y, false),
-                    z: self.get_or_default(z, self.current_position.z, self.invert_z),
+                    x: get_or_default(x, self.current_position.x, false),
+                    y: get_or_default(y, self.current_position.y, false),
+                    z: get_or_default(z, self.current_position.z, self.invert_z),
                 }
             }
         };
         self.current_position.clone()
     }
-    fn get_or_default(&self, value: Option<f32>, default: f64, invert: bool) -> f64 {
-        let value = if let Some(v) = value {
-            v as f64
-        } else {
-            default
-        };
 
-        if invert {
-            -value
-        } else {
-            value
-        }
-    }
     fn get_speed(&mut self, value: Option<f32>) -> f64 {
         if let Some(v) = value {
             self.current_speed = v as f64;
         };
         self.current_speed
+    }
+}
+
+fn get_or_default(value: Option<f32>, default: f64, invert: bool) -> f64 {
+    let value = if let Some(v) = value {
+        v as f64
+    } else {
+        default
+    };
+
+    if invert {
+        -value
+    } else {
+        value
     }
 }

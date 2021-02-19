@@ -12,12 +12,25 @@ use std::{
     sync::Mutex,
     sync::{
         atomic::{AtomicBool, AtomicI64, AtomicU32, Ordering::Relaxed},
-        mpsc::{channel, Sender},
+        mpsc::{channel, Sender, Receiver},
         Arc,
     },
     thread,
     time::Duration,
 };
+#[derive(Debug, PartialEq)]
+pub enum ExternalInput {
+    ToolChanged,
+    NewStock,
+    StockTurned,
+    SpeedChanged
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ExternalInputRequest {
+    ChangeTool(i32),
+    ChangeSpeed(f64),
+}
 
 #[derive(Debug)]
 pub struct MotorController {
@@ -34,7 +47,7 @@ pub struct MotorController {
     z: Arc<AtomicI64>,
     on_off_state: Arc<AtomicBool>,
 }
-
+#[allow(clippy::too_many_arguments)]
 impl MotorController {
     pub fn new(
         on_off: Option<Actor>,
@@ -43,6 +56,10 @@ impl MotorController {
         motor_y: Motor,
         motor_z: Motor,
         z_calibrate: Option<Switch>,
+
+        external_input_enabled: bool,
+        external_input_receiver: Receiver<ExternalInput>,
+        external_input_request_sender: Sender<ExternalInputRequest>,
     ) -> Self {
         let cancel_task = Arc::new(AtomicBool::new(false));
         let state = Arc::new(AtomicU32::new(0));
@@ -85,6 +102,9 @@ impl MotorController {
                 cancel_task_inner,
                 task_query_inner,
                 receive_manual_instruction,
+                external_input_enabled,
+                external_input_receiver,
+                external_input_request_sender,
                 on_off_state_inner,
                 on_off,
                 switch_on_off_delay,

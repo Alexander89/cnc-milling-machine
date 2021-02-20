@@ -26,6 +26,7 @@ pub type Result<T> = result::Result<T, &'static str>;
 pub trait Driver: std::fmt::Debug {
     fn do_step(&mut self, direction: &Direction) -> Result<Direction>;
     fn get_step_size(&self) -> f64;
+    fn is_blocked(&mut self) -> Option<Direction>;
 }
 
 #[derive(Debug)]
@@ -60,14 +61,18 @@ impl Motor {
             speed: 1000,
         }
     }
-    pub fn step(&mut self, direction: Direction) -> Result<()> {
+    /**
+     * @return the amount of time the motor needs so be blocked.
+     */
+    pub fn step(&mut self, direction: Direction) -> u64 {
         // block motor to have a smooth ramp
         // this wil slow slow down the complete program, because all motors run in one thread
         // the slowest motor do also slow down the rest
 
         // first step after a brake could be done immediately
-        if self.last_step.elapsed().unwrap() > Duration::from_millis(50) {
+        let blocked = if self.last_step.elapsed().unwrap() > Duration::from_millis(50) {
             self.speed = 1000;
+            0u64
         } else {
             self.speed += (6000 - self.speed) / (self.speed / 50);
             // println!(
@@ -80,8 +85,11 @@ impl Motor {
             if delta_t < req_delay {
                 let open_delay = req_delay.as_nanos() - delta_t.as_nanos();
                 thread::sleep(Duration::new(0, open_delay as u32));
-            };
-        }
+                (open_delay / 1_000) as u64
+            } else {
+                0u64
+            }
+        };
         self.pref_delta_t = self.last_step.elapsed().unwrap().as_secs_f64();
         self.last_step = SystemTime::now();
 
@@ -91,17 +99,19 @@ impl Motor {
                     print!("-");
                 }
                 (*self.pos).fetch_sub(1, Relaxed);
-                Ok(())
             }
             Ok(Direction::Right) => {
                 if max_level() == LevelFilter::Debug {
                     print!("+");
                 }
                 (*self.pos).fetch_add(1, Relaxed);
-                Ok(())
             }
-            Err(_) => Ok(()),
-        }
+            Err(_) => (),
+        };
+        blocked
+    }
+    pub fn is_blocked(&mut self) -> Option<Direction> {
+        (*self.inner.lock().unwrap().driver).is_blocked()
     }
     pub fn get_pos_ref(&self) -> Arc<AtomicI64> {
         self.pos.clone()

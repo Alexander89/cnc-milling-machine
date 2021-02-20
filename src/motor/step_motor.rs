@@ -86,4 +86,21 @@ impl Driver for StepMotor {
     fn get_step_size(&self) -> f64 {
         self.step_size
     }
+    fn is_blocked(&mut self) -> Option<Direction> {
+        if let Some(switch) = self.end_switch_left.as_mut() {
+            match (switch.is_closed(), self.invert_dir) {
+                (true, false) => return Some(Direction::Left),
+                (true, true) => return Some(Direction::Right),
+                (_, _) => (),
+            };
+        }
+        if let Some(switch) = self.end_switch_right.as_mut() {
+            match (switch.is_closed(), self.invert_dir) {
+                (true, false) => return Some(Direction::Right),
+                (true, true) => return Some(Direction::Left),
+                (_, _) => (),
+            };
+        }
+        None
+    }
 }

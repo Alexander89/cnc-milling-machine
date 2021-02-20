@@ -42,6 +42,10 @@ you can use Z-Down end switch input to calibrate
 - Show progress in UI
 - V1: Responsive web ui for mobile phones
 
+### Bugfix
+
+- **F** is now mm/min. (pref. mm/sec)
+
 ## Upcoming features
 
 1. External input as Change Tool (setting external_input_enabled) ( M6 )

@@ -8,10 +8,12 @@ use crate::gnc::NextMiscellaneous;
 use crate::io::{Actor, Switch};
 use crate::types::{
     CircleDirection, CircleStep, CircleStepCCW, CircleStepCW, CircleStepDir, Direction, Location,
-    MachineState, SteppedCircleMovement, SteppedLinearMovement, SteppedMoveType,
+    MachineState, SteppedCircleMovement, SteppedLinearMovement,
+    SteppedMoveType::{Circle, Linear, Rapid},
 };
 use std::{
     fmt::Debug,
+    ops::{Div, Mul},
     sync::Mutex,
     sync::{
         atomic::{AtomicBool, AtomicI64, AtomicU32, Ordering::Relaxed},
@@ -122,6 +124,11 @@ impl MotorControllerThread {
         let mut last_distance_to_destination = 100;
         let mut q_ptr = 0;
 
+        let mut stepper_delay = 0u64; // micros a motor is block during a linier move
+
+        let mut calculate_z_phase = 0i32;
+        let mut calibrate_z_pos_temp = Location::<i64>::default();
+
         let program_task: u32 = MachineState::ProgramTask.into();
         let calibrate: u32 = MachineState::Calibrate.into();
 
@@ -134,12 +141,12 @@ impl MotorControllerThread {
                         let max_speed = next_task.speed;
                         let task = Task::Manual(next_task);
                         self.state.store(task.machine_state().into(), Relaxed);
-                        self.current_task = Some(InnerTask::from_task(
+                        self.current_task = InnerTask::from_task(
                             task,
                             self.get_pos(),
                             self.get_step_sizes(),
                             max_speed,
-                        ));
+                        );
                     }
                     Ok(ManualInstruction::Miscellaneous(next_miscellaneous)) => {
                         match next_miscellaneous {
@@ -197,74 +204,78 @@ impl MotorControllerThread {
                     destination,
                     ..
                 })) => match move_type {
-                    SteppedMoveType::Linear(SteppedLinearMovement {
+                    Linear(SteppedLinearMovement {
                         delta,
                         speed,
                         distance,
-                        ..
                     })
-                    | SteppedMoveType::Rapid(SteppedLinearMovement {
+                    | Rapid(SteppedLinearMovement {
                         delta,
                         speed,
                         distance,
-                        ..
                     }) => {
                         if let Ok(elapsed) = start_time.elapsed() {
-                            // println!(
-                            //     "loop: speed {} distance {} delta {}",
-                            //     speed, distance, delta
-                            // );
                             if *speed == 0.0f64 || *distance == 0.0f64 {
                                 self.current_task = None;
                                 continue;
                             }
-                            let duration = Duration::from_secs_f64(*distance / *speed);
-                            let runtime = elapsed.as_micros() as u64;
-                            let job_runtime = duration.as_micros() as u64;
+                            let already_moved_this_task = (self.get_pos() - from.clone()).abs();
 
-                            let move_in_task = (self.get_pos() - from.clone()).abs();
+                            let complete_runtime =
+                                Duration::from_secs_f64(*distance / (*speed / 60.0f64)).as_micros()
+                                    as u64;
+
+                            // remove time waiting for the steppers to ramp-up.
+                            // Other wise the rest of the track will try compensate it with driving to fast
+                            let runtime: u64 = elapsed.as_micros() as u64 - stepper_delay;
 
                             let (x, y, z) = delta.split();
 
-                            if (delta.abs() - move_in_task.clone() == Location::default())
+                            if delta.abs() == already_moved_this_task.clone()
                                 || (x == 0 && y == 0 && z == 0)
                             {
                                 self.current_task = None;
                             } else {
                                 if x != 0
-                                    && x.abs() as u64 != move_in_task.x
-                                    && runtime > job_runtime / x.abs() as u64 * move_in_task.x
+                                    && x.abs() as u64 != already_moved_this_task.x
+                                    && runtime
+                                        > complete_runtime / x.abs() as u64
+                                            * already_moved_this_task.x
                                 {
                                     let dir = if x > 0 {
                                         Direction::Right
                                     } else {
                                         Direction::Left
                                     };
-                                    self.motor_x.step(dir).expect("Step failed X");
+                                    stepper_delay += self.motor_x.step(dir);
                                 }
 
                                 if y != 0
-                                    && y.abs() as u64 != move_in_task.y
-                                    && runtime > job_runtime / y.abs() as u64 * move_in_task.y
+                                    && y.abs() as u64 != already_moved_this_task.y
+                                    && runtime
+                                        > complete_runtime / y.abs() as u64
+                                            * already_moved_this_task.y
                                 {
                                     let dir = if y > 0 {
                                         Direction::Right
                                     } else {
                                         Direction::Left
                                     };
-                                    self.motor_y.step(dir).expect("Step failed Y");
+                                    stepper_delay += self.motor_y.step(dir);
                                 }
 
                                 if z != 0
-                                    && z.abs() as u64 != move_in_task.z
-                                    && runtime > job_runtime / z.abs() as u64 * move_in_task.z
+                                    && z.abs() as u64 != already_moved_this_task.z
+                                    && runtime
+                                        > complete_runtime / z.abs() as u64
+                                            * already_moved_this_task.z
                                 {
                                     let dir = if z > 0 {
                                         Direction::Right
                                     } else {
                                         Direction::Left
                                     };
-                                    self.motor_z.step(dir).expect("Step failed Z");
+                                    stepper_delay += self.motor_z.step(dir);
                                 }
                             }
                         } else {
@@ -272,7 +283,7 @@ impl MotorControllerThread {
                             println!("failed at start_time.elapsed()");
                         }
                     }
-                    SteppedMoveType::Circle(SteppedCircleMovement {
+                    Circle(SteppedCircleMovement {
                         turn_direction,
                         center,
                         radius_sq,
@@ -302,19 +313,11 @@ impl MotorControllerThread {
                             }
                         };
                         match step_dir.main {
-                            CircleStepDir::Right => {
-                                self.motor_x.step(Direction::Right).expect("Step failed X")
-                            }
-                            CircleStepDir::Down => {
-                                self.motor_y.step(Direction::Left).expect("Step failed Y")
-                            }
-                            CircleStepDir::Left => {
-                                self.motor_x.step(Direction::Left).expect("Step failed X")
-                            }
-                            CircleStepDir::Up => {
-                                self.motor_y.step(Direction::Right).expect("Step failed Y")
-                            }
-                        }
+                            CircleStepDir::Right => self.motor_x.step(Direction::Right),
+                            CircleStepDir::Down => self.motor_y.step(Direction::Left),
+                            CircleStepDir::Left => self.motor_x.step(Direction::Left),
+                            CircleStepDir::Up => self.motor_y.step(Direction::Right),
+                        };
                         let pos_before_move = self.get_pos();
                         let delta_before_op: Location<f64> =
                             (pos_before_move.clone() - abs_center.clone()).into();
@@ -338,18 +341,10 @@ impl MotorControllerThread {
                             radius_sq - delta_after_op_step_correct.distance_sq();
                         if delta_radius_before_op.abs() > delta_radius_after_op.abs() {
                             match step_dir.opt {
-                                CircleStepDir::Right => {
-                                    self.motor_x.step(Direction::Right).expect("Step failed X")
-                                }
-                                CircleStepDir::Down => {
-                                    self.motor_y.step(Direction::Left).expect("Step failed Y")
-                                }
-                                CircleStepDir::Left => {
-                                    self.motor_x.step(Direction::Left).expect("Step failed X")
-                                }
-                                CircleStepDir::Up => {
-                                    self.motor_y.step(Direction::Right).expect("Step failed Y")
-                                }
+                                CircleStepDir::Right => self.motor_x.step(Direction::Right),
+                                CircleStepDir::Down => self.motor_y.step(Direction::Left),
+                                CircleStepDir::Left => self.motor_x.step(Direction::Left),
+                                CircleStepDir::Up => self.motor_y.step(Direction::Right),
                             };
                         }
 
@@ -369,7 +364,7 @@ impl MotorControllerThread {
                                 destination: destination.clone(),
                                 from: self.get_pos(),
                                 start_time: SystemTime::now(),
-                                move_type: SteppedMoveType::Linear(SteppedLinearMovement {
+                                move_type: Linear(SteppedLinearMovement {
                                     delta: dist_destination.clone(),
                                     distance,
                                     speed: *speed,
@@ -393,6 +388,7 @@ impl MotorControllerThread {
                     z,
                     from,
                     start_time,
+                    step_sizes,
                     ..
                 })) => {
                     let runtime = start_time.elapsed().unwrap().as_micros() as u64;
@@ -402,28 +398,69 @@ impl MotorControllerThread {
                     if runtime > z_steps * 4_000 {
                         match z {
                             CalibrateType::Min => {
-                                if self.motor_z.step(Direction::Left).is_err() {
+                                if self.motor_z.is_blocked() == Some(Direction::Left) {
                                     self.current_task = None;
+                                } else {
+                                    self.motor_z.step(Direction::Left);
                                 }
                             }
                             CalibrateType::Max => {
-                                if self.motor_z.step(Direction::Right).is_err() {
+                                if self.motor_z.is_blocked() == Some(Direction::Right) {
                                     self.current_task = None;
+                                } else {
+                                    self.motor_z.step(Direction::Right);
                                 }
                             }
                             CalibrateType::Middle => {
-                                println!("impl missing");
+                                match calculate_z_phase {
+                                    0 => {
+                                        // move to min
+                                        if self.motor_z.is_blocked() == Some(Direction::Left) {
+                                            calibrate_z_pos_temp = self.get_pos();
+                                            calculate_z_phase = 1;
+                                        } else {
+                                            self.motor_z.step(Direction::Left);
+                                        }
+                                    }
+                                    1 => {
+                                        // move to max
+                                        if self.motor_z.is_blocked() == Some(Direction::Right) {
+                                            let delta = (self.get_pos()
+                                                - calibrate_z_pos_temp.clone())
+                                            .div(2);
+                                            let delta_f64: Location<f64> = delta.clone().into();
+                                            let distance =
+                                                delta_f64.mul(step_sizes.clone()).distance();
+
+                                            self.current_task =
+                                                Some(InnerTask::Production(InnerTaskProduction {
+                                                    destination: delta.clone(),
+                                                    from: self.get_pos(),
+                                                    start_time: SystemTime::now(),
+                                                    move_type: Linear(SteppedLinearMovement {
+                                                        delta, // or (calibrate_z_pos_temp - self.get_pos()).div(2)
+                                                        distance,
+                                                        speed: 360.0f64,
+                                                    }),
+                                                }));
+                                        } else {
+                                            self.motor_z.step(Direction::Right);
+                                        }
+                                    }
+                                    _ => (),
+                                };
+                                println!("!!!!!!! untested implementation. Do not use in production !!!!!!!");
                                 self.current_task = None;
                             }
                             CalibrateType::ContactPin => {
-                                if self.motor_z.step(Direction::Right).is_err() {
-                                    self.current_task = None;
-                                }
                                 if self.z_calibrate.is_none()
                                     || self.z_calibrate.as_mut().unwrap().is_closed()
+                                    || self.motor_z.is_blocked() == Some(Direction::Right)
                                 {
                                     self.current_task = None;
-                                }
+                                } else {
+                                    self.motor_z.step(Direction::Right);
+                                };
                             }
                             CalibrateType::None => (),
                         }
@@ -454,39 +491,44 @@ impl MotorControllerThread {
                     }
                     NextMiscellaneous::ToolChange(_) | NextMiscellaneous::SpeedChange(_) => (),
                 },
-                None => match self.task_query.lock() {
-                    Ok(ref mut lock) if lock.len() > q_ptr => {
-                        let next = lock[q_ptr].clone();
-                        q_ptr += 1;
-                        self.state.store(next.machine_state().into(), Relaxed);
-                        self.steps_done.store(q_ptr as i64, Relaxed);
-                        self.steps_todo.store((lock.len() - q_ptr) as i64, Relaxed);
-                        println!("next {:?} {:?}", q_ptr, lock.len() - q_ptr);
-                        self.current_task = Some(InnerTask::from_task(
-                            next,
-                            self.get_pos(),
-                            self.get_step_sizes(),
-                            40.0f64,
-                        ));
-                    }
-                    Ok(ref mut lock) => {
-                        lock.clear();
-                        q_ptr = 0;
-                        let idle: u32 = MachineState::Idle.into();
+                None => {
+                    calculate_z_phase = 0;
+                    match self.task_query.lock() {
+                        Ok(ref mut locked_queue) if locked_queue.len() > q_ptr => {
+                            let next = locked_queue[q_ptr].clone();
+                            self.state.store(next.machine_state().into(), Relaxed);
+                            self.steps_done.store(q_ptr as i64, Relaxed);
+                            self.steps_todo
+                                .store((locked_queue.len() - q_ptr) as i64, Relaxed);
+                            // println!("next {:?} {:?}", q_ptr, locked_queue.len() - q_ptr);
+                            q_ptr += 1;
 
-                        if self.state.load(Relaxed) != idle {
-                            self.steps_todo.store(0, Relaxed);
-                            self.steps_done.store(0, Relaxed);
-                            self.state.store(idle, Relaxed);
+                            self.current_task = InnerTask::from_task(
+                                next,
+                                self.get_pos(),
+                                self.get_step_sizes(),
+                                40.0f64,
+                            );
                         }
-                        #[allow(clippy::drop_ref)]
-                        drop(lock);
-                        thread::sleep(Duration::new(0, 10_000));
+                        Ok(ref mut locked_queue) => {
+                            locked_queue.clear();
+                            q_ptr = 0;
+
+                            let idle: u32 = MachineState::Idle.into();
+                            if self.state.load(Relaxed) != idle {
+                                self.steps_todo.store(0, Relaxed);
+                                self.steps_done.store(0, Relaxed);
+                                self.state.store(idle, Relaxed);
+                            }
+                            #[allow(clippy::drop_ref)]
+                            drop(locked_queue);
+                            thread::sleep(Duration::new(0, 10_000));
+                        }
+                        _ => {
+                            thread::sleep(Duration::new(0, 10_000));
+                        }
                     }
-                    _ => {
-                        thread::sleep(Duration::new(0, 10_000));
-                    }
-                },
+                }
             }
         }
     }

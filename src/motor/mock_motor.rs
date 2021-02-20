@@ -28,4 +28,7 @@ impl Driver for MockMotor {
     fn get_step_size(&self) -> f64 {
         self.step_size
     }
+    fn is_blocked(&mut self) -> Option<Direction> {
+        None
+    }
 }

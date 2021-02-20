@@ -8,8 +8,11 @@ use std::{fmt::Debug, time::SystemTime};
 #[derive(Debug)]
 pub struct InnerTaskProduction {
     pub start_time: SystemTime,
+    // stepper position to start from
     pub from: Location<i64>,
+    // stepper position to go
     pub destination: Location<i64>,
+    // movement type to move to the desired position
     pub move_type: SteppedMoveType,
 }
 
@@ -28,6 +31,7 @@ pub struct InnerTaskCalibrate {
     pub x: CalibrateType,
     pub y: CalibrateType,
     pub z: CalibrateType,
+    pub step_sizes: Location<f64>,
 }
 
 #[derive(Debug)]
@@ -50,7 +54,7 @@ impl InnerTask {
         current_pos: Location<i64>,
         step_sizes: Location<f64>,
         max_speed: f64,
-    ) -> InnerTask {
+    ) -> Option<InnerTask> {
         match t {
             Task::Manual(task) => {
                 let input = Location::new(task.move_x_speed, task.move_y_speed, task.move_z_speed);
@@ -62,16 +66,20 @@ impl InnerTask {
                 let destination = current_pos.clone() + delta.clone();
                 let distance = move_vec.distance();
 
-                InnerTask::Production(InnerTaskProduction {
-                    start_time: SystemTime::now(),
-                    from: current_pos,
-                    destination,
-                    move_type: SteppedMoveType::Linear(SteppedLinearMovement {
-                        delta,
-                        distance,
-                        speed,
-                    }),
-                })
+                if speed == 0.0f64 || distance == 0.0f64 {
+                    None
+                } else {
+                    Some(InnerTask::Production(InnerTaskProduction {
+                        start_time: SystemTime::now(),
+                        from: current_pos,
+                        destination,
+                        move_type: SteppedMoveType::Linear(SteppedLinearMovement {
+                            delta,
+                            distance,
+                            speed,
+                        }),
+                    }))
+                }
             }
             Task::ProgramMovement(Next3dMovement {
                 speed,
@@ -80,32 +88,40 @@ impl InnerTask {
                 ..
             }) => match move_type {
                 MoveType::Linear(LinearMovement { distance, delta }) => {
-                    let delta_in_steps: Location<i64> = (delta / step_sizes).into();
+                    if speed == 0.0f64 || distance == 0.0f64 {
+                        None
+                    } else {
+                        let delta_in_steps: Location<i64> = (delta / step_sizes).into();
 
-                    InnerTask::Production(InnerTaskProduction {
-                        start_time: SystemTime::now(),
-                        from: current_pos.clone(),
-                        destination: delta_in_steps.clone() - current_pos,
-                        move_type: SteppedMoveType::Linear(SteppedLinearMovement {
-                            delta: delta_in_steps,
-                            distance,
-                            speed: speed.min(max_speed),
-                        }),
-                    })
+                        Some(InnerTask::Production(InnerTaskProduction {
+                            start_time: SystemTime::now(),
+                            from: current_pos.clone(),
+                            destination: delta_in_steps.clone() - current_pos,
+                            move_type: SteppedMoveType::Linear(SteppedLinearMovement {
+                                delta: delta_in_steps,
+                                distance,
+                                speed: speed.min(max_speed),
+                            }),
+                        }))
+                    }
                 }
                 MoveType::Rapid(LinearMovement { distance, delta }) => {
-                    let delta_in_steps: Location<i64> = (delta / step_sizes).into();
+                    if speed == 0.0f64 || distance == 0.0f64 {
+                        None
+                    } else {
+                        let delta_in_steps: Location<i64> = (delta / step_sizes).into();
 
-                    InnerTask::Production(InnerTaskProduction {
-                        start_time: SystemTime::now(),
-                        from: current_pos.clone(),
-                        destination: delta_in_steps.clone() - current_pos,
-                        move_type: SteppedMoveType::Rapid(SteppedLinearMovement {
-                            delta: delta_in_steps,
-                            distance,
-                            speed: speed.min(max_speed),
-                        }),
-                    })
+                        Some(InnerTask::Production(InnerTaskProduction {
+                            start_time: SystemTime::now(),
+                            from: current_pos.clone(),
+                            destination: delta_in_steps.clone() - current_pos,
+                            move_type: SteppedMoveType::Rapid(SteppedLinearMovement {
+                                delta: delta_in_steps,
+                                distance,
+                                speed: speed.min(max_speed),
+                            }),
+                        }))
+                    }
                 }
                 MoveType::Circle(CircleMovement {
                     center,
@@ -114,10 +130,10 @@ impl InnerTask {
                 }) => {
                     let destination = to / step_sizes.clone();
 
-                    let step_delay = step_sizes.max() / speed.min(max_speed).max(0.05);
+                    let step_delay = step_sizes.max() / speed.min(max_speed).max(6.0) / 60.0f64;
                     let step_center = (center / step_sizes.clone()).into();
 
-                    InnerTask::Production(InnerTaskProduction {
+                    Some(InnerTask::Production(InnerTaskProduction {
                         start_time: SystemTime::now(),
                         from: current_pos,
                         destination: destination.into(),
@@ -129,17 +145,18 @@ impl InnerTask {
                             speed,
                             step_delay,
                         }),
-                    })
+                    }))
                 }
             },
-            Task::ProgramMiscellaneous(ht) => InnerTask::Miscellaneous(ht),
-            Task::Calibrate(x, y, z) => InnerTask::Calibrate(InnerTaskCalibrate {
+            Task::ProgramMiscellaneous(t) => Some(InnerTask::Miscellaneous(t)),
+            Task::Calibrate(x, y, z) => Some(InnerTask::Calibrate(InnerTaskCalibrate {
                 start_time: SystemTime::now(),
                 from: current_pos,
                 x,
                 y,
                 z,
-            }),
+                step_sizes,
+            })),
         }
     }
 }

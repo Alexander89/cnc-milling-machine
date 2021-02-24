@@ -3,6 +3,7 @@ import React, { useState } from 'react'
 import { createUseStyles } from 'react-jss'
 import { InfoMessage, obs } from '../services'
 import { scan, filter } from 'rxjs/operators'
+import { primary } from '../theme'
 
 export const InfoBar = () => {
   const [messages, setMessage] = useState<Array<InfoMessage>>([])
@@ -33,15 +34,15 @@ export const InfoBar = () => {
 const useStyle = createUseStyles({
   main: {
     width: '100%',
-    backgroundColor: '#6d6db0',
-    padding: '10px 0px 15px 0px',
-    color: 'white',
+    backgroundColor: primary,
+    padding: '12px 0px 12px 0px',
     height: 175
   },
   header: {
-    fontSize: '1.5em',
-    marginLeft: 15,
-    marginBottom: 5
+    fontWeight: 900,
+    textTransform: 'uppercase',
+    marginLeft: 12,
+    marginBottom: 12
   },
   body: {
     height: 120,
@@ -49,8 +50,8 @@ const useStyle = createUseStyles({
     backgroundColor: 'white',
     color: 'black',
     margin: 0,
-    padding: 3,
-    paddingLeft: 15,
+    padding: 6,
+    paddingLeft: 12,
     overflowX: 'hidden',
     overflowY: 'scroll',
     '& div': {

@@ -79,7 +79,8 @@ impl App {
 
     pub fn apply_control(&mut self, control: Location<f64>) {
         if self.last_control != control {
-            self.cnc.manual_move(control.x, control.y, control.z, 20.0);
+            self.cnc
+                .manual_move(control.x, control.y, control.z, 1440.0);
             self.last_control = control;
             self.send_controller_msg();
         }

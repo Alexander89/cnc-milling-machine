@@ -1,5 +1,5 @@
 #![allow(clippy::too_many_arguments)]
-use crate::app::settings::MotorSettings;
+use crate::motor::MotorSettings;
 use crate::types::Location;
 use actix::prelude::{Message, Recipient};
 use serde::{Deserialize, Serialize};
@@ -342,4 +342,6 @@ pub struct WsCommandSettingsSetRuntimeSettings {
     pub show_console_output: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub console_pos_update_reduce: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub external_input_enabled: Option<bool>,
 }

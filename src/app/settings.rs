@@ -1,21 +1,6 @@
+use crate::motor::MotorSettings;
 use serde::{Deserialize, Serialize};
 use std::{env, fs};
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MotorSettings {
-    pub max_step_speed: u32,
-    pub pull_gpio: u8,
-    pub dir_gpio: u8,
-    pub invert_dir: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ena_gpio: Option<u8>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub end_left_gpio: Option<u8>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub end_right_gpio: Option<u8>,
-    pub step_size: f64,
-}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -35,6 +20,8 @@ pub struct Settings {
     pub invert_z: bool,
     pub show_console_output: bool,
     pub console_pos_update_reduce: u32,
+    #[serde(default)]
+    pub external_input_enabled: bool,
 }
 
 impl Default for Settings {
@@ -50,6 +37,10 @@ impl Default for Settings {
                 end_left_gpio: Some(21),
                 end_right_gpio: Some(20),
                 step_size: 0.004f64,
+                acceleration: 5.7f64,
+                acceleration_damping: 0.0009f64,
+                free_step_speed: 20.0f64,
+                acceleration_time_scale: 2.0f64,
             },
             motor_y: MotorSettings {
                 max_step_speed: 200,
@@ -60,6 +51,10 @@ impl Default for Settings {
                 end_left_gpio: Some(19),
                 end_right_gpio: Some(26),
                 step_size: 0.004f64,
+                acceleration: 5.7f64,
+                acceleration_damping: 0.0009f64,
+                free_step_speed: 20.0f64,
+                acceleration_time_scale: 2.0f64,
             },
             motor_z: MotorSettings {
                 max_step_speed: 200,
@@ -70,18 +65,23 @@ impl Default for Settings {
                 end_left_gpio: Some(5),
                 end_right_gpio: Some(6),
                 step_size: 0.004f64,
+                acceleration: 5.7f64,
+                acceleration_damping: 0.0009f64,
+                free_step_speed: 20.0f64,
+                acceleration_time_scale: 2.0f64,
             },
             calibrate_z_gpio: Some(16),
             on_off_gpio: Some(13),
             switch_on_off_delay: 3.5f64,
             input_dir: vec![String::from(".")],
             input_update_reduce: 10u32,
-            default_speed: 5.0f64,
-            rapid_speed: 50.0f64,
+            default_speed: 360.0f64,
+            rapid_speed: 720.0f64,
             scale: 1.0f64,
             invert_z: false,
             show_console_output: false,
             console_pos_update_reduce: 50u32,
+            external_input_enabled: false,
         }
     }
 }

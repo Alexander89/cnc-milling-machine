@@ -40,14 +40,24 @@ you can use Z-Down end switch input to calibrate
 - Manipulate GCode in UI
 - Multi input directory live watcher for USB-Stick detection.
 - Show progress in UI
+- V1: Responsive web ui for mobile phones
+
+### Bugfix
+
+- **F** is now mm/min. (pref. mm/sec)
 
 ## Upcoming features
 
-1. Emergency trigger (stop || stop and go up)
-2. Drive to max dimensions for selected program
-3. Show path in ui
-4. Responsive web ui for mobile phones
-5. Move spindel in UI with virtual joystick
+1. External input as Change Tool (setting external_input_enabled) ( M6 )
+2. Move spindel in UI with virtual joystick
+3. Better Responsive web ui for mobile phones
+
+backlog
+
+4. Emergency trigger (stop || stop and go up)
+5. Drive to max dimensions for selected program
+6. Show path in ui
+7. Redesign UI and widget System
 
 ## supported gCode commands
 
@@ -65,3 +75,4 @@ you can use Z-Down end switch input to calibrate
 | M3   | Switch On                                            | M3                                                      |
 | M4   | Switch On                                            | M4                                                      |
 | M5   | Switch Off                                           | M5                                                      |
+| M6   | Change tool (WIP)                                    | M6 T02                                                  |

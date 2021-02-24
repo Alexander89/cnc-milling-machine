@@ -85,7 +85,16 @@ export const ProgramEditor = () => {
         className="header"
         style={{ display: 'flex', justifyContent: 'space-between' }}
       >
-        Program: {newProg ? '' : programName || ''}
+        Program
+      </div>
+      <div
+        className="content"
+        style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
+      >
+        <div
+          style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}
+        >
+        Program name: {newProg ? '' : programName || ''}
         <div style={{ display: 'inline-block' }}>
           {newProg
             ? (
@@ -98,12 +107,8 @@ export const ProgramEditor = () => {
             : (
             <Button onClick={addNew}>New</Button>
               )}
+          </div>
         </div>
-      </div>
-      <div
-        className="content"
-        style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
-      >
         <div className="Editor">
           <Editor
             style={{ flex: '1' }}

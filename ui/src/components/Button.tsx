@@ -1,6 +1,7 @@
 // eslint-disable-next-line no-use-before-define
 import * as React from 'react'
 import { createUseStyles } from 'react-jss'
+import { primary, primaryDark, primaryLight } from '../theme'
 
 type Props = {
   children: React.ReactNode
@@ -19,20 +20,24 @@ export const Button = ({ children, onClick }: Props) => {
 const useStyle = createUseStyles({
   buttonStyle: {
     '& > div': {
-      fontSize: '24px !important',
-      backgroundColor: '#b0b0d7',
+      backgroundColor: primary,
       border: 'solid 1px #d0d0d0',
-      borderRadius: 10,
-      boxShadow: '3px 3px 3px #555, inset 3px 3px 3px 0px #d6d6e6',
+      borderRadius: 2,
+      boxShadow: '2px 2px 2px #555, inset 2px 2px 2px 0px #d6d6e6',
       adjustContent: 'center',
       textAlign: 'center',
-      padding: '5px 10px',
+      padding: '12px 24px',
       cursor: 'pointer'
     },
     '& > div:hover': {
-      backgroundColor: '#a0a0d5',
+      backgroundColor: primaryLight,
       border: 'solid 1px #c0c0c0',
-      boxShadow: '3px 3px 3px #555'
+      boxShadow: '2px 2px 2px #555'
+    },
+    '& > div:active': {
+      backgroundColor: primaryDark,
+      border: 'solid 1px #c0c0c0',
+      boxShadow: '2px 2px 2px #555'
     }
   }
 })

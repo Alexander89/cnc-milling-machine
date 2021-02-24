@@ -5,7 +5,10 @@ mod ui_communication;
 
 use crate::gnc::Gnc;
 use crate::io::{Actor, Switch};
-use crate::motor::{motor_controller::MotorController, MockMotor, Motor, StepMotor};
+use crate::motor::{
+    motor_controller::{ExternalInput, ExternalInputRequest, MotorController},
+    Driver, MockMotor, Motor, StepMotor,
+};
 use crate::types::Location;
 use crate::ui::types::{Mode, WsCommandsFrom, WsMessages};
 
@@ -15,8 +18,7 @@ use crossbeam_channel::{unbounded, Receiver, Sender};
 use futures::executor::ThreadPool;
 use gilrs::Gilrs;
 use notify::{raw_watcher, RawEvent, RecursiveMode, Watcher};
-use std::sync::mpsc;
-use std::{fs, thread, time::Duration};
+use std::{boxed::Box, fs, sync::mpsc, thread, time::Duration};
 
 const SETTINGS_PATH: &str = "./settings.yaml";
 
@@ -43,6 +45,9 @@ pub struct App {
     pub display_counter: u32,
     pub steps_todo: i64,
     pub steps_done: i64,
+    pub external_input_enabled: bool,
+    pub external_input_sender: mpsc::Sender<ExternalInput>,
+    pub external_input_request_receiver: mpsc::Receiver<ExternalInputRequest>,
 }
 
 impl App {
@@ -62,10 +67,20 @@ impl App {
         let (ui_data_sender, ui_data_receiver) = unbounded::<WsMessages>();
         let (ui_cmd_sender, ui_cmd_receiver) = unbounded::<WsCommandsFrom>();
 
+        // init external_input channel
+        let (external_input_sender, external_input_receiver) = mpsc::channel::<ExternalInput>();
+        let (external_input_request_sender, external_input_request_receiver) =
+            mpsc::channel::<ExternalInputRequest>();
+
         // return tuple with app and ui channel
         let mut app = App {
             available_progs: App::read_available_progs(&settings.input_dir),
-            cnc: App::create_cnc_from_settings(&settings),
+            external_input_enabled: settings.external_input_enabled,
+            cnc: App::create_cnc_from_settings(
+                &settings,
+                external_input_receiver,
+                external_input_request_sender,
+            ),
             pool,
             settings,
             gilrs,
@@ -85,82 +100,61 @@ impl App {
             freeze_x: false,
             freeze_y: false,
             slow_control: false,
+            external_input_sender,
+            external_input_request_receiver,
         };
         app.run(ui_data_receiver, ui_cmd_sender);
     }
-    fn create_cnc_from_settings(settings: &Settings) -> MotorController {
-        let (on_off, z_calibrate, motor_x, motor_y, motor_z) = if settings.dev_mode {
-            (
-                settings
-                    .on_off_gpio
-                    .map(|pin| Actor::new(pin, false, false)),
-                settings.calibrate_z_gpio.map(|pin| Switch::new(pin, false)),
-                Motor::new(
-                    "x".to_string(),
-                    settings.motor_x.max_step_speed,
-                    Box::new(MockMotor::new(settings.motor_x.step_size)),
-                ),
-                Motor::new(
-                    "y".to_string(),
-                    settings.motor_y.max_step_speed,
-                    Box::new(MockMotor::new(settings.motor_y.step_size)),
-                ),
-                Motor::new(
-                    "z".to_string(),
-                    settings.motor_z.max_step_speed,
-                    Box::new(MockMotor::new(settings.motor_z.step_size)),
-                ),
-            )
+    fn create_cnc_from_settings(
+        settings: &Settings,
+        external_input_receiver: mpsc::Receiver<ExternalInput>,
+        external_input_request_sender: mpsc::Sender<ExternalInputRequest>,
+    ) -> MotorController {
+        let on_off = settings
+            .on_off_gpio
+            .map(|pin| Actor::new(pin, false, false));
+        let z_calibrate = settings.calibrate_z_gpio.map(|pin| Switch::new(pin, false));
+
+        let driver_x: Box<dyn Driver + Send> = if settings.dev_mode {
+            Box::new(MockMotor::new(settings.motor_x.step_size))
         } else {
-            (
-                settings
-                    .on_off_gpio
-                    .map(|pin| Actor::new(pin, false, false)), // don't invert and start switched off
-                settings.calibrate_z_gpio.map(|pin| Switch::new(pin, false)),
-                Motor::new(
-                    "x".to_string(),
-                    settings.motor_x.max_step_speed,
-                    Box::new(StepMotor::new(
-                        settings.motor_x.pull_gpio,      // 18,
-                        settings.motor_x.dir_gpio,       // 27,
-                        settings.motor_x.invert_dir,     // false,
-                        settings.motor_x.ena_gpio,       // None,
-                        settings.motor_x.end_left_gpio,  // Some(21),
-                        settings.motor_x.end_right_gpio, // Some(20),
-                        settings.motor_x.max_step_speed, // speed,
-                        settings.motor_x.step_size,      // 0.004f64,
-                    )),
-                ),
-                Motor::new(
-                    "y".to_string(),
-                    settings.motor_y.max_step_speed,
-                    Box::new(StepMotor::new(
-                        settings.motor_y.pull_gpio,      // 22,
-                        settings.motor_y.dir_gpio,       // 23,
-                        settings.motor_y.invert_dir,     // false,
-                        settings.motor_y.ena_gpio,       // None,
-                        settings.motor_y.end_left_gpio,  // Some(19),
-                        settings.motor_y.end_right_gpio, // Some(26),
-                        settings.motor_y.max_step_speed, // speed,
-                        settings.motor_y.step_size,      // 0.004f64,
-                    )),
-                ),
-                Motor::new(
-                    "z".to_string(),
-                    settings.motor_z.max_step_speed,
-                    Box::new(StepMotor::new(
-                        settings.motor_z.pull_gpio,      // 25,
-                        settings.motor_z.dir_gpio,       // 24,
-                        settings.motor_z.invert_dir,     // false,
-                        settings.motor_z.ena_gpio,       // None,
-                        settings.motor_z.end_left_gpio,  // Some(5),
-                        settings.motor_z.end_right_gpio, // Some(6),
-                        settings.motor_z.max_step_speed, // speed,
-                        settings.motor_z.step_size,      // 0.004f64,
-                    )),
-                ),
-            )
+            Box::new(StepMotor::from_settings(settings.motor_x.clone()))
         };
+        let driver_y: Box<dyn Driver + Send> = if settings.dev_mode {
+            Box::new(MockMotor::new(settings.motor_y.step_size))
+        } else {
+            Box::new(StepMotor::from_settings(settings.motor_y.clone()))
+        };
+        let driver_z: Box<dyn Driver + Send> = if settings.dev_mode {
+            Box::new(MockMotor::new(settings.motor_z.step_size))
+        } else {
+            Box::new(StepMotor::from_settings(settings.motor_z.clone()))
+        };
+
+        let motor_x = Motor::new(
+            "x".to_string(),
+            settings.motor_x.max_step_speed.into(),
+            settings.motor_x.acceleration,
+            settings.motor_x.acceleration_damping,
+            settings.motor_x.free_step_speed,
+            driver_x,
+        );
+        let motor_y = Motor::new(
+            "y".to_string(),
+            settings.motor_y.max_step_speed.into(),
+            settings.motor_y.acceleration,
+            settings.motor_y.acceleration_damping,
+            settings.motor_y.free_step_speed,
+            driver_y,
+        );
+        let motor_z = Motor::new(
+            "z".to_string(),
+            settings.motor_z.max_step_speed.into(),
+            settings.motor_z.acceleration,
+            settings.motor_z.acceleration_damping,
+            settings.motor_z.free_step_speed,
+            driver_z,
+        );
 
         // create cnc MotorController
         MotorController::new(
@@ -170,6 +164,9 @@ impl App {
             motor_y,
             motor_z,
             z_calibrate,
+            settings.external_input_enabled,
+            external_input_receiver,
+            external_input_request_sender,
         )
     }
     fn gamepad_connected(gilrs: &Gilrs) -> bool {

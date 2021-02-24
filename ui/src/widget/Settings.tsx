@@ -131,6 +131,17 @@ export const Settings = () => {
                 })
               }
             />
+            <ToggleField
+             title="External input required"
+             defaultValue={false}
+             value={settings.externalInputEnabled}
+             onChanged={(value) =>
+               setSettings({
+                 ...settings,
+                 externalInputEnabled: value
+               })
+             }
+           />
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <Button onClick={reload}>Reload</Button>
               <Button onClick={save}>Save</Button>

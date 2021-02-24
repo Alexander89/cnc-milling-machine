@@ -1,61 +1,63 @@
+body {
+  background-color: #f3f4f8;
+  color: #0e0e34;
+}
 .header {
-  font-size: 1.5em;
   font-weight: 900;
-  padding: 10px 15px;
-  margin-bottom: 15px;
-  background-color: #6d6db0
+  padding: 12px 24px;
+  background-color: #5385ee;
+  text-transform: uppercase;
 }
 .cardBox {
   display: flex
 }
 .card {
-  margin: 10px 15px;
-  border-radius: 8px;
-  background-color: #ddd;
+  margin: 12px 24px;
+  padding-bottom: 12px;
+  border-radius: 3px;
+  background-color: #c6c9d3;
   overflow: hidden
 }
 .content {
-  margin: 10px 15px
+  margin: 12px 24px
 }
 .row {
   display: flex;
-  margin-bottom: 25px,
+  margin-bottom: 24px,
 }
 .posValue {
-  text-align: center;
   margin: 0px 5px;
-  font-size: 1.4em;
-  width: 175px;
+  width: 150px;
 }
 .posValue>div {
+  text-align: center;
   background-color: white;
-  border-radius: 10px;
-  padding: 15px 5px;
-  margin-top: 7px;
-  font-size: 1.6em;
-  font-weight: 900
+  border-radius: 6px;
+  padding: 24px 5px;
+  margin-top: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
 }
 .modeValue {
   flex: 1;
-  text-align: center;
-  padding: 5px 10px;
-  font-size: 1.4em;
-  width: 220px;
+  padding: 6px 12px;
+  width: 150px;
 }
 .modeValue>div {
+  text-align: center;
   background-color: white;
-  border-radius: 10px;
-  padding: 15px 5px;
+  border-radius: 6px;
+  padding: 24px 12px;
   margin-top: 7px;
-  font-size: 1.6em;
   font-weight: 900;
+  text-transform: uppercase;
 }
 .cardStretch {
   display: flex;
-  margin: 10px 15px;
+  margin: 12px 24px;
   background-color: #ddd;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: 4px;
   flex-direction: column
 }
 
@@ -82,76 +84,69 @@
 }
 
 .RuntimeSettingsBox {
-  width: 750px;
+  width: 700px;
 }
 
 .SystemSettingsBox {
-  width: 1600px;
+  width: 700px;
 }
 
 .MotorSettingsBox {
   display: flex;
-  justify-content: space-between
+  flex-direction: column;
 }
-
-@media only screen and (min-width: 780px) {
-  .hideMobile {
-    display: auto;
-  }
-  .showMobile {
-    display: none;
-  }
-  .main {
-    position: relative;
-    width: 100vw;
-    height: 100vh;
-    overflow: hidden;
-    display: flex;
-  }
-  .viewMain {
-    flex: 1;
-    height: calc(100vh - 175px);
-    overflow: auto;
-  }
-  .viewDevModeBanner {
-    background-color: red;
-    color: white;
-    padding: 5px 10px;
-    font-size: 1.5em;
-    text-align: center;
-  }
-  .viewHeader {
-    font-size: 1.8em;
-    font-weight: 900;
-    padding: 5px 10px;
-    padding-top: 10px;
-    padding-bottom: 20px;
-    margin-bottom: 10px;
-    background-color: #ddd;
-  }
-  .viewCardBox {
-    display: flex;
-  }
-
-  .SystemGeneralSettings {
-    margin-top: 25px;
-    width: 550px
-  }
-  .ProgramCardBox {
-    align-items: stretch;
-     height: calc(100vh - 300px)
-  }
-  .ProgEditorCardBox {
-    max-height: 100%;
-    width: 560px;
-  }
-  .Editor {
-    flex: 1;
-    width: 100%
-  }
-  .ProgSelectCardBox {
-    width: 450px
-  }
+.hideMobile {
+  display: auto;
+}
+.showMobile {
+  display: none;
+}
+.main {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+}
+.viewMain {
+  flex: 1;
+  height: calc(100vh - 175px);
+  overflow: auto;
+}
+.viewDevModeBanner {
+  background-color: red;
+  color: white;
+  padding: 12px 24px;
+  text-align: center;
+}
+.viewHeader {
+  font-weight: 900;
+  padding: 12px 24px;
+  padding-top: 12px;
+  padding-bottom: 24px;
+  margin-bottom: 12px;
+  background-color: #ddd;
+}
+.viewCardBox {
+  display: flex;
+}
+.SystemGeneralSettings {
+  margin-top: 24px;
+}
+.ProgramCardBox {
+  align-items: stretch;
+   height: calc(100vh - 300px)
+}
+.ProgEditorCardBox {
+  max-height: 100%;
+  width: 560px;
+}
+.Editor {
+  flex: 1;
+  width: 100%
+}
+.ProgSelectCardBox {
+  width: 450px
 }
 
 @media only screen and (max-width: 780px) {
@@ -173,17 +168,16 @@
   .viewDevModeBanner {
     background-color: red;
     color: white;
-    padding: 5px 10px;
-    font-size: 1.2em;
+    padding: 12px 12px;
     text-align: center;
   }
   .viewHeader {
-    font-size: 1.3em;
     font-weight: 900;
-    padding: 5px 10px;
-    padding-top: 10px;
+    padding: 12px 12px;
+    padding-top: 12px;
     padding-bottom: 20px;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
+    text-transform: uppercase;
     background-color: #ddd;
   }
   .viewCardBox {
@@ -192,36 +186,32 @@
   }
 
   .header {
-    font-size: 1.2em;
     font-weight: 900;
-    padding: 10px 15px;
-    margin-bottom: 15px;
+    padding: 12px 24px;
+    margin-bottom: 24px;
+    text-transform: uppercase;
     background-color: #6d6db0
   }
   .content {
-    margin: 5px 5px
+    margin: 12px 24px
   }
   .card {
-    margin: 5px 5px;
+    margin: 12px 24px;
   }
   .posValue {
-    margin: 0px 5px 5px;
-    font-size: 1.2em;
+    margin: 0px 12px 24px;
   }
   .posValue>div {
-    padding: 10px 3px;
-    margin-top: 3px;
-    font-size: 1.2em;
+    padding: 12px 6px;
+    margin-top: 6px;
   }
   .modeValue {
-    padding: 5px 10px;
-    font-size: 1.2em;
+    padding: 12px 12px;
     width: 220px;
   }
   .modeValue>div {
-    padding: 15px 5px;
+    padding: 24px 12px;
     margin-top: 7px;
-    font-size: 1em;
   }
 
   .inputField {
@@ -253,11 +243,7 @@
     width: auto;
   }
 
-  .MotorSettingsBox {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between
-  }
+
   .ProgEditorCardBox {
     min-height: 800px;
     width: auto;
@@ -266,7 +252,6 @@
     height: 800px
   }
   .ProgSelectCardBox {
-    font-size: 0.8em
   }
   .ProgViewInfo {
     display: flex;

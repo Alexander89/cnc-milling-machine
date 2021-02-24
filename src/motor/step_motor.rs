@@ -1,5 +1,5 @@
 #![allow(clippy::too_many_arguments)]
-use super::{Driver, Result};
+use super::{Driver, MotorSettings, Result};
 use crate::io::Switch;
 use crate::types::Direction;
 use rppal::gpio::{Gpio, OutputPin};
@@ -12,7 +12,7 @@ pub struct StepMotor {
     direction: OutputPin,
     invert_dir: bool,
     enable: Option<OutputPin>,
-    max_step_speed: u32, // steps per second
+    max_step_speed: u64, // steps per min
     step_pos: i32,       // + - from the reset point
     step_size: f64,      // mm per step
     end_switch_left: Option<Switch>,
@@ -28,7 +28,7 @@ impl StepMotor {
         ena: Option<u8>,
         end_left: Option<u8>,
         end_right: Option<u8>,
-        max_step_speed: u32,
+        max_step_speed: u64,
         step_size: f64,
     ) -> Self {
         let name = format!("Stepper p{} d{} ", pull, dir);
@@ -47,11 +47,23 @@ impl StepMotor {
             enable: ena_gpio,
             step_pos: 0i32,
             max_step_speed,
+            step_size,
             end_switch_left: left,
             end_switch_right: right,
             current_direction: Direction::Left,
-            step_size,
         }
+    }
+    pub fn from_settings(settings: MotorSettings) -> Self {
+        StepMotor::new(
+            settings.pull_gpio,             // 18,
+            settings.dir_gpio,              // 27,
+            settings.invert_dir,            // false,
+            settings.ena_gpio,              // None,
+            settings.end_left_gpio,         // Some(21),
+            settings.end_right_gpio,        // Some(20),
+            settings.max_step_speed.into(), // speed,
+            settings.step_size,             // 0.004f64,
+        )
     }
     fn is_blocked(&mut self) -> bool {
         let switch_opt = match (self.current_direction.clone(), self.invert_dir) {
@@ -85,5 +97,22 @@ impl Driver for StepMotor {
     }
     fn get_step_size(&self) -> f64 {
         self.step_size
+    }
+    fn is_blocked(&mut self) -> Option<Direction> {
+        if let Some(switch) = self.end_switch_left.as_mut() {
+            match (switch.is_closed(), self.invert_dir) {
+                (true, false) => return Some(Direction::Left),
+                (true, true) => return Some(Direction::Right),
+                (_, _) => (),
+            };
+        }
+        if let Some(switch) = self.end_switch_right.as_mut() {
+            match (switch.is_closed(), self.invert_dir) {
+                (true, false) => return Some(Direction::Right),
+                (true, true) => return Some(Direction::Left),
+                (_, _) => (),
+            };
+        }
+        None
     }
 }

@@ -53,9 +53,13 @@ impl App {
         settings
             .console_pos_update_reduce
             .map(|v| self.settings.console_pos_update_reduce = v);
+        settings
+            .external_input_enabled
+            .map(|v| self.settings.external_input_enabled = v);
 
         self.settings.write_to_file(SETTINGS_PATH)
     }
+
     pub fn set_system_settings(
         &mut self,
         settings: WsCommandSettingsSetSystemSettings,

@@ -8,7 +8,11 @@ export const motorSettingsC = t.intersection([
     pullGpio: t.number,
     dirGpio: t.number,
     invertDir: t.boolean,
-    stepSize: t.number
+    stepSize: t.number,
+    acceleration: t.number,
+    freeStepSpeed: t.number,
+    accelerationDamping: t.number,
+    accelerationTimeScale: t.number
   }),
   t.partial({
     enaGpio: t.number,
@@ -49,7 +53,8 @@ export const runtimeC = t.intersection([
     scale: t.number,
     invertZ: t.boolean,
     showConsoleOutput: t.boolean,
-    consolePosUpdateReduce: t.number
+    consolePosUpdateReduce: t.number,
+    externalInputEnabled: t.boolean
   })
 ])
 export type Runtime = t.TypeOf<typeof runtimeC>
@@ -117,6 +122,7 @@ export type SetRuntimeSettingsCommand = {
   invertZ?: boolean
   showConsoleOutput?: boolean
   consolePosUpdateReduce?: number
+  externalInputEnabled?:boolean
 }
 
 export type SettingsCommand =

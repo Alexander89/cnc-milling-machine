@@ -3,8 +3,9 @@ import * as React from 'react'
 import { useContext, useState } from 'react'
 import { Button } from '../components/Button'
 import { InputField, InputToggle, ToggleField } from '../components/form'
+import { MotorBox } from '../components/MotorBox'
 import { AlertCtx, obs, ServiceCtx } from '../services'
-import { System as SystemSettings, MotorSettings } from '../services/settings'
+import { System as SystemSettings } from '../services/settings'
 
 export const System = () => {
   const [settings, setSettings] = useState<SystemSettings | undefined>()
@@ -51,7 +52,11 @@ export const System = () => {
                   ena: 1,
                   minStop: 21,
                   maxStop: 20,
-                  stepSize: 0.004
+                  stepSize: 0.004,
+                  acceleration: 50,
+                  freeStepSpeed: 20,
+                  accelerationDamping: 0.8,
+                  accelerationTimeScale: 2
                 }}
                 onChange={(m) =>
                   setSettings({
@@ -71,7 +76,11 @@ export const System = () => {
                   ena: 1,
                   minStop: 19,
                   maxStop: 26,
-                  stepSize: 0.004
+                  stepSize: 0.004,
+                  acceleration: 50,
+                  freeStepSpeed: 20,
+                  accelerationDamping: 0.8,
+                  accelerationTimeScale: 2
                 }}
                 onChange={(m) =>
                   setSettings({
@@ -91,7 +100,11 @@ export const System = () => {
                   ena: 1,
                   minStop: 5,
                   maxStop: 6,
-                  stepSize: 0.004
+                  stepSize: 0.004,
+                  acceleration: 50,
+                  freeStepSpeed: 20,
+                  accelerationDamping: 0.8,
+                  accelerationTimeScale: 2
                 }}
                 onChange={(m) =>
                   setSettings({
@@ -159,136 +172,6 @@ export const System = () => {
         )) ||
           'loading'}
       </div>
-    </div>
-  )
-}
-
-type MotorBoxProps = {
-  title: string
-  motor: MotorSettings
-  onChange: (m: MotorSettings) => void
-  defaultSettings: {
-    pull: number
-    dir: number
-    invertDir: boolean
-    ena: number
-    minStop: number
-    maxStop: number
-    maxStepSpeed: number
-    stepSize: number
-  }
-}
-
-export const MotorBox = ({
-  title,
-  motor,
-  onChange,
-  defaultSettings
-}: MotorBoxProps) => {
-  return (
-    <div
-      style={{
-        backgroundColor: '#e5e5e5',
-        padding: '15px 10px',
-        borderRadius: 10
-      }}
-    >
-      <div style={{ fontSize: 24, marginBottom: 25 }}>{title}</div>
-      <InputField
-        title="Motor Step size (mm)"
-        type="number"
-        value={motor.stepSize}
-        defaultValue={defaultSettings.stepSize}
-        onChanged={(value) =>
-          onChange({
-            ...motor,
-            stepSize: value
-          })
-        }
-      />
-      <InputField
-        title="Max speed (step/sec)"
-        type="number"
-        value={motor.maxStepSpeed}
-        defaultValue={defaultSettings.maxStepSpeed}
-        onChanged={(value) =>
-          onChange({
-            ...motor,
-            maxStepSpeed: value
-          })
-        }
-      />
-      <InputField
-        title="Pull gpio pin number"
-        type="number"
-        value={motor.pullGpio}
-        defaultValue={defaultSettings.pull}
-        onChanged={(value) =>
-          onChange({
-            ...motor,
-            pullGpio: value
-          })
-        }
-      />
-      <InputField
-        title="Direction gpio pin number"
-        type="number"
-        value={motor.dirGpio}
-        defaultValue={defaultSettings.dir}
-        onChanged={(value) =>
-          onChange({
-            ...motor,
-            dirGpio: value
-          })
-        }
-      />
-      <ToggleField
-        title="invert direction"
-        defaultValue={motor.invertDir}
-        value={motor.invertDir}
-        onChanged={(value) =>
-          onChange({
-            ...motor,
-            invertDir: value
-          })
-        }
-      />
-      <InputToggle
-        title="Enable gpio pin number"
-        type="number"
-        value={motor.enaGpio}
-        defaultValue={defaultSettings.ena}
-        onChanged={(value) =>
-          onChange({
-            ...motor,
-            enaGpio: value
-          })
-        }
-      />
-      <InputToggle
-        title="Min / left end switch"
-        type="number"
-        value={motor.endLeftGpio}
-        defaultValue={defaultSettings.minStop}
-        onChanged={(value) =>
-          onChange({
-            ...motor,
-            endLeftGpio: value
-          })
-        }
-      />
-      <InputToggle
-        title="Max / right end switch"
-        type="number"
-        value={motor.endRightGpio}
-        defaultValue={defaultSettings.maxStop}
-        onChanged={(value) =>
-          onChange({
-            ...motor,
-            endRightGpio: value
-          })
-        }
-      />
     </div>
   )
 }

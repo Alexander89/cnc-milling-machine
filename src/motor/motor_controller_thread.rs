@@ -124,7 +124,7 @@ impl MotorControllerThread {
         let mut last_distance_to_destination = 100;
         let mut q_ptr = 0;
 
-        let mut stepper_delay = 0u64; // micros a motor is block during a linier move
+        let mut stepper_delay = 0.0f64; // sec a motor is block during a linier move
 
         let mut calculate_z_phase = 0i32;
         let mut calibrate_z_pos_temp = Location::<i64>::default();
@@ -227,7 +227,9 @@ impl MotorControllerThread {
 
                             // remove time waiting for the steppers to ramp-up.
                             // Other wise the rest of the track will try compensate it with driving to fast
-                            let runtime: u64 = elapsed.as_micros() as u64 - stepper_delay;
+                            let runtime: u64 = (elapsed.as_micros()
+                                - Duration::from_secs_f64(stepper_delay).as_micros())
+                                as u64;
 
                             let (x, y, z) = delta.split();
 
@@ -531,13 +533,6 @@ impl MotorControllerThread {
                 }
             }
         }
-    }
-
-    fn max_speed(&self) -> f64 {
-        let x_speed: f64 = self.motor_x.speed as f64 * self.motor_x.step_size;
-        let y_speed: f64 = self.motor_y.speed as f64 * self.motor_y.step_size;
-        let z_speed: f64 = self.motor_z.speed as f64 * self.motor_z.step_size;
-        x_speed.min(y_speed).min(z_speed)
     }
 
     fn switch_on(&mut self) {

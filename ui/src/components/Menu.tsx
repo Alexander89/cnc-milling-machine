@@ -1,6 +1,7 @@
 // eslint-disable-next-line no-use-before-define
 import React, { useState } from 'react'
 import { createUseStyles } from 'react-jss'
+import { primary, primaryLight } from '../theme'
 import { Mode } from '../types'
 
 type Props = {
@@ -10,9 +11,10 @@ type Props = {
 
 export const Menu = ({ mode, onChanged }: Props) => {
   const [visible, setVisible] = useState(false)
-  const { main, header, bottoms, active } = useStyle()
-  const Entry = ({ m, title }: { m: Mode; title: string }) => (
-    <div onClick={() => onChanged(m)} className={mode === m ? active : ''}>
+  const { main, header, bottoms } = useStyle()
+
+  const Entry = ({ m, title }: {m: Mode; title: string }) => (
+    <div onClick={() => onChanged(m)} style={mode === m ? { backgroundColor: `${primary}` } : {}}>
       {title}
     </div>
   )
@@ -41,9 +43,8 @@ export const Menu = ({ mode, onChanged }: Props) => {
 const useStyle = createUseStyles({
   main: {
     flex: '0 0 180px',
-    backgroundColor: '#6d6db0',
-    padding: '15px 0px 15px 15px',
-    color: 'White'
+    backgroundColor: primary,
+    padding: '15px 0px 15px 15px'
   },
   header: {
     fontSize: '2em',
@@ -54,20 +55,18 @@ const useStyle = createUseStyles({
     marginLeft: 15,
     '& div': {
       padding: '15px 0px 15px 10px',
-      backgroundColor: '#7777aa',
+      backgroundColor: primaryLight,
       marginBottom: 5,
       borderTopLeftRadius: 3,
       borderBottomLeftRadius: 15,
       borderLeft: 'solid 3px #ddd',
       borderBottom: 'solid 1px #999',
-      marginRight: 0
+      marginRight: 0,
+      cursor: 'pointer'
     },
     '& div:hover': {
-      backgroundColor: '#5e5eb0'
+      backgroundColor: primaryLight
     }
-  },
-  active: {
-    backgroundColor: '#8b8bf1 !important'
   },
   bottomActive: {
     backgroundColor: '#3f3fa4'

@@ -29,15 +29,22 @@ export const ProgramSelect = () => {
         style={{ display: 'flex', justifyContent: 'space-between' }}
       >
         Available Programs
-        <div style={{ width: 130, display: 'inline-block' }}>
-          <Button onClick={refresh}>Refresh</Button>
-        </div>
       </div>
       <div
         className="content"
         style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
       >
-        <div>Search dir: {programs ? programs.inputDir.join(', ') : '---'}</div>
+        <div></div>
+
+        <div
+          style={{ display: 'flex', justifyContent: 'space-between' }}
+        >
+          Search dir: {programs ? programs.inputDir.join(', ') : '---'}
+          <div style={{ width: 130, display: 'inline-block' }}>
+            <Button onClick={refresh}>Refresh</Button>
+          </div>
+        </div>
+
         <div className={progList}>
           {programs
             ? programs.progs.map((p) => (

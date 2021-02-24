@@ -3,7 +3,6 @@ import React, { useState } from 'react'
 import { obs, StatusMessage } from '../services'
 import { Controller } from '../widget/Controller'
 import { Mode } from '../widget/Mode'
-import { MotorRampUp } from '../widget/MotorRampUp'
 import { Position } from '../widget/Position'
 
 export const MainView = () => {
@@ -18,7 +17,6 @@ export const MainView = () => {
       <div className="viewHeader">System monitoring / control</div>
       <div className="viewCardBox">
         <div>
-          <MotorRampUp />
           <Position />
           <Controller />
         </div>

@@ -235,7 +235,7 @@ impl MotorControllerThread {
                             continue;
                         }
 
-                        let mut runtime = Self::calc_runtime(start_time.elapsed().unwrap().as_secs_f64(), stepper_delay);
+                        let mut runtime = Self::calc_runtime(start_time.elapsed().unwrap().as_secs_f64(), &mut stepper_delay);
                         if x != 0
                             && x.abs() as u64 != already_moved_this_task.x
                             && runtime > complete_runtime / x.abs() as u64 * already_moved_this_task.x
@@ -243,7 +243,7 @@ impl MotorControllerThread {
                             stepper_delay += self.motor_x.step(x.into());
                         }
 
-                        runtime = Self::calc_runtime(start_time.elapsed().unwrap().as_secs_f64(), stepper_delay);
+                        runtime = Self::calc_runtime(start_time.elapsed().unwrap().as_secs_f64(), &mut stepper_delay);
                         if y != 0
                             && y.abs() as u64 != already_moved_this_task.y
                             && runtime > complete_runtime / y.abs() as u64 * already_moved_this_task.y
@@ -251,7 +251,7 @@ impl MotorControllerThread {
                             stepper_delay += self.motor_y.step(y.into());
                         }
 
-                        runtime = Self::calc_runtime(start_time.elapsed().unwrap().as_secs_f64(), stepper_delay);
+                        runtime = Self::calc_runtime(start_time.elapsed().unwrap().as_secs_f64(), &mut stepper_delay);
                         if z != 0
                             && z.abs() as u64 != already_moved_this_task.z
                             && runtime > complete_runtime / z.abs() as u64 * already_moved_this_task.z
@@ -510,20 +510,13 @@ impl MotorControllerThread {
         }
     }
 
-    fn calc_runtime(elapsed: f64, blocked: f64) -> u64 {
-        // let mut blocked_delay = Duration::from_secs_f64(stepper_delay).as_micros();
-        // if blocked_delay > elapsed.as_micros() {
-        //     stepper_delay = elapsed.as_secs_f64();
-        //     blocked_delay = Duration::from_secs_f64(stepper_delay).as_micros();
-        // }
-        // let mut runtime: u64 = (elapsed.as_micros() - blocked_delay) as u64;
-
-        let runtime = if elapsed < blocked {
-            elapsed
+    fn calc_runtime(elapsed: f64, blocked_delay: &mut f64) -> u64 {
+        if elapsed < *blocked_delay {
+            *blocked_delay = 0.0;
+            Duration::from_secs_f64(elapsed).as_micros() as u64
         } else {
-            elapsed - blocked
-        };
-        Duration::from_secs_f64(runtime).as_micros() as u64
+            Duration::from_secs_f64(elapsed - *blocked_delay).as_micros() as u64
+        }
     }
 
     fn switch_on(&mut self) {

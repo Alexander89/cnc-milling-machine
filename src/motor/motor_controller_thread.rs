@@ -138,7 +138,7 @@ impl MotorControllerThread {
             if self.state.load(Relaxed) != program_task && self.state.load(Relaxed) != calibrate {
                 match next_manual_task {
                     Ok(ManualInstruction::Movement(next_task)) => {
-                        let max_speed = next_task.speed;
+                        let max_speed = next_task.speed_mm_min;
                         let task = Task::Manual(next_task);
                         self.state.store(task.machine_state().into(), Relaxed);
                         self.current_task = InnerTask::from_task(
@@ -214,75 +214,49 @@ impl MotorControllerThread {
                         speed,
                         distance,
                     }) => {
-                        if let Ok(elapsed) = start_time.elapsed() {
-                            if *speed == 0.0f64 || *distance == 0.0f64 {
-                                self.current_task = None;
-                                continue;
-                            }
-                            let already_moved_this_task = (self.get_pos() - from.clone()).abs();
-
-                            let complete_runtime =
-                                Duration::from_secs_f64(*distance / (*speed / 60.0f64)).as_micros()
-                                    as u64;
-
-                            // remove time waiting for the steppers to ramp-up.
-                            // Other wise the rest of the track will try compensate it with driving to fast
-                            let runtime: u64 = (elapsed.as_micros()
-                                - Duration::from_secs_f64(stepper_delay).as_micros())
-                                as u64;
-
-                            let (x, y, z) = delta.split();
-
-                            if delta.abs() == already_moved_this_task.clone()
-                                || (x == 0 && y == 0 && z == 0)
-                            {
-                                self.current_task = None;
-                            } else {
-                                if x != 0
-                                    && x.abs() as u64 != already_moved_this_task.x
-                                    && runtime
-                                        > complete_runtime / x.abs() as u64
-                                            * already_moved_this_task.x
-                                {
-                                    let dir = if x > 0 {
-                                        Direction::Right
-                                    } else {
-                                        Direction::Left
-                                    };
-                                    stepper_delay += self.motor_x.step(dir);
-                                }
-
-                                if y != 0
-                                    && y.abs() as u64 != already_moved_this_task.y
-                                    && runtime
-                                        > complete_runtime / y.abs() as u64
-                                            * already_moved_this_task.y
-                                {
-                                    let dir = if y > 0 {
-                                        Direction::Right
-                                    } else {
-                                        Direction::Left
-                                    };
-                                    stepper_delay += self.motor_y.step(dir);
-                                }
-
-                                if z != 0
-                                    && z.abs() as u64 != already_moved_this_task.z
-                                    && runtime
-                                        > complete_runtime / z.abs() as u64
-                                            * already_moved_this_task.z
-                                {
-                                    let dir = if z > 0 {
-                                        Direction::Right
-                                    } else {
-                                        Direction::Left
-                                    };
-                                    stepper_delay += self.motor_z.step(dir);
-                                }
-                            }
-                        } else {
+                        if *speed == 0.0f64 || *distance == 0.0f64 {
                             self.current_task = None;
-                            println!("failed at start_time.elapsed()");
+                            continue;
+                        }
+
+                        let already_moved_this_task = (self.get_pos() - from.clone()).abs();
+
+                        let complete_runtime = Duration::from_secs_f64(*distance / (*speed / 60.0f64)).as_micros() as u64;
+
+                        // remove time waiting for the steppers to ramp-up.
+                        // Other wise the rest of the track will try compensate it with driving to fast
+                        //println!("{} , {}", elapsed.as_micros(), Duration::from_secs_f64(stepper_delay).as_micros());
+                        let (x, y, z) = delta.split();
+
+                        // check if already arrived complete
+                        // @TODO slow down ramp here??
+                        if delta.abs() == already_moved_this_task.clone() || (x == 0 && y == 0 && z == 0) {
+                            self.current_task = None;
+                            continue;
+                        }
+
+                        let mut runtime = Self::calc_runtime(start_time.elapsed().unwrap().as_secs_f64(), stepper_delay);
+                        if x != 0
+                            && x.abs() as u64 != already_moved_this_task.x
+                            && runtime > complete_runtime / x.abs() as u64 * already_moved_this_task.x
+                        {
+                            stepper_delay += self.motor_x.step(x.into());
+                        }
+
+                        runtime = Self::calc_runtime(start_time.elapsed().unwrap().as_secs_f64(), stepper_delay);
+                        if y != 0
+                            && y.abs() as u64 != already_moved_this_task.y
+                            && runtime > complete_runtime / y.abs() as u64 * already_moved_this_task.y
+                        {
+                            stepper_delay += self.motor_y.step(y.into());
+                        }
+
+                        runtime = Self::calc_runtime(start_time.elapsed().unwrap().as_secs_f64(), stepper_delay);
+                        if z != 0
+                            && z.abs() as u64 != already_moved_this_task.z
+                            && runtime > complete_runtime / z.abs() as u64 * already_moved_this_task.z
+                        {
+                            stepper_delay += self.motor_z.step(z.into());
                         }
                     }
                     Circle(SteppedCircleMovement {
@@ -361,7 +335,7 @@ impl MotorControllerThread {
                             let dist_destination_f64: Location<f64> =
                                 dist_destination.clone().into();
                             let distance = (dist_destination_f64 * step_sizes.clone()).distance();
-
+                            stepper_delay = 0.0f64;
                             self.current_task = Some(InnerTask::Production(InnerTaskProduction {
                                 destination: destination.clone(),
                                 from: self.get_pos(),
@@ -494,6 +468,7 @@ impl MotorControllerThread {
                     NextMiscellaneous::ToolChange(_) | NextMiscellaneous::SpeedChange(_) => (),
                 },
                 None => {
+                    stepper_delay = 0.0f64;
                     calculate_z_phase = 0;
                     match self.task_query.lock() {
                         Ok(ref mut locked_queue) if locked_queue.len() > q_ptr => {
@@ -502,7 +477,7 @@ impl MotorControllerThread {
                             self.steps_done.store(q_ptr as i64, Relaxed);
                             self.steps_todo
                                 .store((locked_queue.len() - q_ptr) as i64, Relaxed);
-                            // println!("next {:?} {:?}", q_ptr, locked_queue.len() - q_ptr);
+                            println!("next {:?} {:?}", q_ptr, locked_queue.len() - q_ptr);
                             q_ptr += 1;
 
                             self.current_task = InnerTask::from_task(
@@ -533,6 +508,22 @@ impl MotorControllerThread {
                 }
             }
         }
+    }
+
+    fn calc_runtime(elapsed: f64, blocked: f64) -> u64 {
+        // let mut blocked_delay = Duration::from_secs_f64(stepper_delay).as_micros();
+        // if blocked_delay > elapsed.as_micros() {
+        //     stepper_delay = elapsed.as_secs_f64();
+        //     blocked_delay = Duration::from_secs_f64(stepper_delay).as_micros();
+        // }
+        // let mut runtime: u64 = (elapsed.as_micros() - blocked_delay) as u64;
+
+        let runtime = if elapsed < blocked {
+            elapsed
+        } else {
+            elapsed - blocked
+        };
+        Duration::from_secs_f64(runtime).as_micros() as u64
     }
 
     fn switch_on(&mut self) {

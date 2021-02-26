@@ -18,6 +18,7 @@ use std::{
     thread,
     time::Duration,
 };
+use thread_priority::{ThreadPriority, set_current_thread_priority};
 #[derive(Debug, PartialEq)]
 pub enum ExternalInput {
     ToolChanged,
@@ -87,6 +88,7 @@ impl MotorController {
         let cancel_task_inner = cancel_task.clone();
         let task_query_inner = task_query.clone();
         let thread = std::thread::spawn(move || {
+            set_current_thread_priority(ThreadPriority::Max).unwrap();
             let mut inner = MotorControllerThread::new(
                 motor_x.get_pos_ref(),
                 motor_y.get_pos_ref(),
@@ -160,14 +162,14 @@ impl MotorController {
     pub fn is_switched_on(&self) -> bool {
         self.on_off_state.load(Relaxed)
     }
-    pub fn manual_move(&mut self, x: f64, y: f64, z: f64, speed: f64) {
+    pub fn manual_move(&mut self, x: f64, y: f64, z: f64, speed_mm_min: f64) {
         if self
             .manual_instruction_sender
             .send(ManualInstruction::Movement(ManualTask {
                 move_x_speed: x,
                 move_y_speed: y,
                 move_z_speed: z,
-                speed,
+                speed_mm_min,
             }))
             .is_err()
         {

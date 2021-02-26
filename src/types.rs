@@ -58,6 +58,15 @@ impl Debug for Direction {
         }
     }
 }
+impl Into<Direction> for i64 {
+    fn into(self) -> Direction {
+        if self > 0 {
+            Direction::Right
+        } else {
+            Direction::Left
+        }
+    }
+}
 
 #[derive(PartialEq, Clone)]
 pub struct Location<T: Debug + PartialEq> {

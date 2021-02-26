@@ -233,20 +233,20 @@ impl App {
                     };
                     match rx_fs_changed.try_recv() {
                         Ok(RawEvent {
-                            path: Some(path),
+                            path: Some(_),
                             op: Ok(notify::op::CLOSE_WRITE),
                             ..
                         })
                         | Ok(RawEvent {
-                            path: Some(path),
+                            path: Some(_),
                             op: Ok(notify::op::REMOVE),
                             ..
                         }) => {
-                            println!("{:?}", path);
+                            //println!("{:?}", path);
                             publish_update = true;
                         }
                         _ => {
-                            thread::sleep(Duration::new(0, 250_000_000));
+                            thread::sleep(Duration::new(0, 100_000_000));
                             if publish_update {
                                 let (changed, ap) =
                                     App::update_available_progs(&path_vec, &known_progs);

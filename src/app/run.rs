@@ -79,8 +79,19 @@ impl App {
 
     pub fn apply_control(&mut self, control: Location<f64>) {
         if self.last_control != control {
-            self.cnc
-                .manual_move(control.x, control.y, control.z, 1440.0);
+            let speed = if self.slow_control {
+                180.0f64
+            } else {
+                1200.0f64
+            };
+            let max = control.x.abs().max(control.y.abs()).max(control.z.abs());
+            println!("lng {} {}", max, speed * max);
+            self.cnc.manual_move(
+                control.x,
+                control.y,
+                control.z,
+                speed * max,
+            );
             self.last_control = control;
             self.send_controller_msg();
         }
@@ -94,7 +105,6 @@ impl App {
         self.input_reduce = 0;
 
         let mut control = self.last_control.clone();
-        let speed = if self.slow_control { 2.5f64 } else { 10.0f64 };
         // map GamePad events to update the manual program or start a program
         while let Some(Event { event, .. }) = self.gilrs.next_event() {
             match event {
@@ -112,27 +122,27 @@ impl App {
                 }
                 EventType::AxisChanged(Axis::LeftStickX, value, _) => {
                     if !self.freeze_x && value > 0.15 {
-                        control.x = (value as f64 - 0.15) / 8.5 * -speed;
+                        control.x = (value as f64 - 0.15) / 8.5 * -10.0;
                     } else if !self.freeze_x && value < -0.15 {
-                        control.x = (value as f64 + 0.15) / 8.5 * -speed;
+                        control.x = (value as f64 + 0.15) / 8.5 * -10.0;
                     } else {
                         control.x = 0.0;
                     }
                 }
                 EventType::AxisChanged(Axis::LeftStickY, value, _) => {
                     if !self.freeze_y && value > 0.15 {
-                        control.y = (value as f64 - 0.15) / 8.5 * speed;
+                        control.y = (value as f64 - 0.15) / 8.5 * 10.0;
                     } else if !self.freeze_y && value < -0.15 {
-                        control.y = (value as f64 + 0.15) / 8.5 * speed;
+                        control.y = (value as f64 + 0.15) / 8.5 * 10.0;
                     } else {
                         control.y = 0.0;
                     }
                 }
                 EventType::AxisChanged(Axis::RightStickY, value, _) => {
                     if value > 0.15 {
-                        control.z = (value as f64 - 0.15) / 8.5 * speed;
+                        control.z = (value as f64 - 0.15) / 8.5 * 10.0;
                     } else if value < -0.15 {
-                        control.z = (value as f64 + 0.15) / 8.5 * speed;
+                        control.z = (value as f64 + 0.15) / 8.5 * 10.0;
                     } else {
                         control.z = 0.0;
                     }

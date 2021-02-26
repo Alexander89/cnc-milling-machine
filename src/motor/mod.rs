@@ -16,8 +16,7 @@ use std::{
         atomic::{AtomicI64, Ordering::Relaxed},
         Arc,
     },
-    thread,
-    time::{Duration, SystemTime},
+    time::SystemTime,
 };
 
 pub use mock_motor::MockMotor;
@@ -63,11 +62,12 @@ pub struct MotorInner {
 
 #[derive(Debug)]
 pub struct Motor {
+    name: String,
     pos: Arc<AtomicI64>,
     step_size: f64,
     inner: Arc<Mutex<MotorInner>>,
     // for speed
-    t_pre_last: SystemTime,
+    last_speed: f64,
     t_last: SystemTime,
     // values to ramp up the motor speed
     max_step_speed: f64, // [step / sec]
@@ -85,24 +85,25 @@ impl Motor {
         free_step_speed: f64,
         driver: Box<dyn Driver + Send>,
     ) -> Self {
+        println!("{}", max_step_speed);
         Motor {
+            name: name.clone(),
             pos: Arc::new(AtomicI64::new(0)),
             step_size: driver.get_step_size(),
+            max_step_speed: max_step_speed / driver.get_step_size(),
+
+            last_speed: free_step_speed,
+            t_last: SystemTime::now(),
+
+            acceleration,
+            acceleration_damping,
+            free_step_speed,
+
             inner: Arc::new(Mutex::new(MotorInner {
                 name,
                 max_step_speed: max_step_speed as u64, // steps per second
                 driver,
             })),
-
-            t_pre_last: SystemTime::now()
-                .checked_sub(Duration::from_secs(5))
-                .unwrap_or(SystemTime::UNIX_EPOCH),
-            t_last: SystemTime::now(),
-
-            max_step_speed,
-            acceleration,
-            acceleration_damping,
-            free_step_speed,
         }
     }
     /**
@@ -112,19 +113,14 @@ impl Motor {
         // block motor to have a smooth ramp
         // this will slow slow down all motors, because all motors run in one thread
 
-        // delta T from last to pre-last step
-        let d_t_last = self
-            .t_last
-            .duration_since(self.t_pre_last)
-            .unwrap()
-            .as_secs_f64();
+
         // current_speed_st_p_s to messure the max next speed (min free_step_speed as offset for max next speed)
         // graph: const v = Math.max(startMotorSpeed, vLast)
-        let current_speed_st_p_s = (1.0f64 / d_t_last).max(self.free_step_speed);
+        let current_speed_st_p_s = (self.last_speed).max(self.free_step_speed);
         // calc max speed:
         // graph: const maxSpeed = speedCurrent + acceleration - speedCurrent * damping
-        let max_speed = current_speed_st_p_s + self.acceleration
-            - (current_speed_st_p_s * self.acceleration_damping);
+        let max_speed = (current_speed_st_p_s + self.acceleration
+            - (current_speed_st_p_s * self.acceleration_damping)).min(self.max_step_speed);
         // upper bound; how long the the motor have to wait at least
         let min_delta_t = 1.0f64 / max_speed;
 
@@ -134,12 +130,29 @@ impl Motor {
         // block if the required wait time is larger the the elapsed time
         let blocked = if min_delta_t > d_t {
             let required_wait_for = min_delta_t - d_t;
-            thread::sleep(Duration::from_secs_f64(required_wait_for));
+            while min_delta_t- 0.000005  > self.t_last.elapsed().unwrap().as_secs_f64() {
+
+            }
+            self.last_speed = max_speed;
             required_wait_for
         } else {
+            self.last_speed = 1.0 / d_t;
             0.0f64
         };
-        self.t_pre_last = self.t_last;
+
+        println!(
+            "{} ls: {:1.6}   max: {:3.2}   d_t: {:1.6}   bl: {:1.6}",
+            self.name,
+            self.last_speed * self.step_size,
+            max_speed * self.step_size,
+            d_t,
+            blocked
+        );
+        //  println!(
+        //     " cs: {:3.2}   max: {:3.2}",
+        //     current_speed_st_p_s,
+        //     max_speed,
+        // );
         self.t_last = SystemTime::now();
 
         // do step now

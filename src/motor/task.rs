@@ -58,7 +58,6 @@ impl InnerTask {
         match t {
             Task::Manual(task) => {
                 let input = Location::new(task.move_x_speed, task.move_y_speed, task.move_z_speed);
-                let speed = input.distance() * task.speed;
 
                 let move_vec: Location<f64> = input * 10000.0f64;
                 let delta: Location<i64> = (move_vec.clone() / step_sizes).into(); // [steps] (10m more than the table into i64 steps)
@@ -66,7 +65,7 @@ impl InnerTask {
                 let destination = current_pos.clone() + delta.clone();
                 let distance = move_vec.distance();
 
-                if speed == 0.0f64 || distance == 0.0f64 {
+                if task.speed_mm_min == 0.0f64 || distance == 0.0f64 {
                     None
                 } else {
                     Some(InnerTask::Production(InnerTaskProduction {
@@ -76,7 +75,7 @@ impl InnerTask {
                         move_type: SteppedMoveType::Linear(SteppedLinearMovement {
                             delta,
                             distance,
-                            speed,
+                            speed: task.speed_mm_min,
                         }),
                     }))
                 }
@@ -169,8 +168,8 @@ pub struct ManualTask {
     pub move_y_speed: f64,
     /** z speed from -1.0 to 1.0 */
     pub move_z_speed: f64,
-    /** move speed [mm/sec] */
-    pub speed: f64,
+    /** move speed [mm/min] */
+    pub speed_mm_min: f64,
 }
 
 pub enum ManualInstruction {

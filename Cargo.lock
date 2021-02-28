@@ -494,7 +494,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "cnc-control"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "actix 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "actix-cors 0.5.4 (registry+https://github.com/rust-lang/crates.io-index)",

@@ -53,7 +53,7 @@ export const MotorBox = ({
         }
       />
       <InputField
-        title="Free run speed (step/min)"
+        title="Free run speed (mm/min)"
         type="number"
         value={motor.freeStepSpeed}
         defaultValue={defaultSettings.freeStepSpeed}
@@ -65,7 +65,7 @@ export const MotorBox = ({
         }
       />
       <InputField
-        title="Max speed (step/min)"
+        title="Max speed (mm/min)"
         type="number"
         value={motor.maxStepSpeed}
         defaultValue={defaultSettings.maxStepSpeed}

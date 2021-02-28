@@ -51,8 +51,8 @@ export const Settings = () => {
             </div>
             <InputField
               type="number"
-              title="default speed movement (5 mm/s)"
-              value={settings.inputUpdateReduce}
+              title="default speed movement (5 mm/min)"
+              value={settings.defaultSpeed}
               defaultValue={5}
               onChanged={(value) =>
                 setSettings({
@@ -63,7 +63,7 @@ export const Settings = () => {
             />
             <InputField
               type="number"
-              title="Default rapid speed movement (50 mm/s)"
+              title="Default rapid speed movement (50 mm/min)"
               value={settings.rapidSpeed}
               defaultValue={50}
               onChanged={(value) =>

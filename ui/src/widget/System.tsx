@@ -45,7 +45,7 @@ export const System = () => {
                 title="Motor X"
                 motor={settings.motorX}
                 defaultSettings={{
-                  maxStepSpeed: 200,
+                  maxStepSpeed: 1500,
                   pull: 18,
                   dir: 27,
                   invertDir: false,
@@ -53,9 +53,9 @@ export const System = () => {
                   minStop: 21,
                   maxStop: 20,
                   stepSize: 0.004,
-                  acceleration: 50,
-                  freeStepSpeed: 20,
-                  accelerationDamping: 0.8,
+                  acceleration: 5.7,
+                  freeStepSpeed: 25,
+                  accelerationDamping: 0.0008,
                   accelerationTimeScale: 2
                 }}
                 onChange={(m) =>
@@ -69,7 +69,7 @@ export const System = () => {
                 title="Motor Y"
                 motor={settings.motorY}
                 defaultSettings={{
-                  maxStepSpeed: 200,
+                  maxStepSpeed: 1500,
                   pull: 22,
                   dir: 23,
                   invertDir: false,
@@ -77,9 +77,9 @@ export const System = () => {
                   minStop: 19,
                   maxStop: 26,
                   stepSize: 0.004,
-                  acceleration: 50,
-                  freeStepSpeed: 20,
-                  accelerationDamping: 0.8,
+                  acceleration: 5.7,
+                  freeStepSpeed: 25,
+                  accelerationDamping: 0.0008,
                   accelerationTimeScale: 2
                 }}
                 onChange={(m) =>
@@ -93,7 +93,7 @@ export const System = () => {
                 title="Motor Z"
                 motor={settings.motorZ}
                 defaultSettings={{
-                  maxStepSpeed: 200,
+                  maxStepSpeed: 1500,
                   pull: 25,
                   dir: 24,
                   invertDir: false,
@@ -101,9 +101,9 @@ export const System = () => {
                   minStop: 5,
                   maxStop: 6,
                   stepSize: 0.004,
-                  acceleration: 50,
-                  freeStepSpeed: 20,
-                  accelerationDamping: 0.8,
+                  acceleration: 5.7,
+                  freeStepSpeed: 25,
+                  accelerationDamping: 0.0008,
                   accelerationTimeScale: 2
                 }}
                 onChange={(m) =>

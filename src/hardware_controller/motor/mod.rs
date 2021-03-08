@@ -68,6 +68,7 @@ impl Motor {
             Err(e) => Err(e),
         }
     }
+    #[allow(dead_code)]
     pub fn is_blocked(&mut self) -> Option<Direction> {
         (*self.driver).is_blocked()
     }

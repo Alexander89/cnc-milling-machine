@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::ops::{Div, Mul};
 use std::time::Duration;
 

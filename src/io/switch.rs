@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 use rppal::gpio::{Gpio, InputPin, Level};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum SwitchState {
     OPEN,
     CLOSED,

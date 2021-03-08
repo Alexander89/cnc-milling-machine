@@ -10,7 +10,7 @@ use instruction::{CalibrateType, Instruction};
 use motor::{Motor, SettingsMotor};
 use types::*;
 
-use crate::types::{Direction, Location, MachineState};
+use crate::{settings::Settings, types::{Direction, Location, MachineState}};
 use crate::{
     io::Switch,
     types::{CircleStep, CircleStepCCW, CircleStepCW, CircleStepDir},
@@ -46,6 +46,7 @@ pub struct SettingsHardwareController {
 }
 
 impl SettingsHardwareController {
+    #[allow(dead_code)]
     pub fn mock() -> SettingsHardwareController {
         SettingsHardwareController {
             motor_x: SettingsMotor {
@@ -79,6 +80,41 @@ impl SettingsHardwareController {
             pos_update_every_x_sec: 0.2,
             external_input_enabled: true,
             dev_mode: true,
+        }
+    }
+    pub fn from(settings: Settings) -> SettingsHardwareController {
+        SettingsHardwareController {
+            motor_x: SettingsMotor {
+                pull_gpio: settings.motor_x.pull_gpio,         //u8,
+                dir_gpio: settings.motor_x.dir_gpio,          //u8,
+                invert_dir: settings.motor_x.invert_dir,    //bool,
+                ena_gpio: settings.motor_x.ena_gpio,       //Option<u8>,
+                end_left_gpio: settings.motor_x.end_left_gpio,  //Option<u8>,
+                end_right_gpio: settings.motor_x.end_right_gpio, //Option<u8>,
+            },
+            motor_y: SettingsMotor {
+                pull_gpio: settings.motor_y.pull_gpio,         //u8,
+                dir_gpio: settings.motor_y.dir_gpio,          //u8,
+                invert_dir: settings.motor_y.invert_dir,    //bool,
+                ena_gpio: settings.motor_y.ena_gpio,       //Option<u8>,
+                end_left_gpio: settings.motor_y.end_left_gpio,  //Option<u8>,
+                end_right_gpio: settings.motor_y.end_right_gpio, //Option<u8>,
+            },
+            motor_z: SettingsMotor {
+                pull_gpio: settings.motor_z.pull_gpio,         //u8,
+                dir_gpio: settings.motor_z.dir_gpio,          //u8,
+                invert_dir: settings.motor_z.invert_dir,    //bool,
+                ena_gpio: settings.motor_z.ena_gpio,       //Option<u8>,
+                end_left_gpio: settings.motor_z.end_left_gpio,  //Option<u8>,
+                end_right_gpio: settings.motor_z.end_right_gpio, //Option<u8>,
+            },
+            calibrate_z_gpio: settings.calibrate_z_gpio,
+            on_off_gpio: settings.on_off_gpio,
+            on_off_invert: settings.on_off_invert,
+            on_off_switch_delay: settings.on_off_switch_delay,
+            pos_update_every_x_sec: settings.pos_update_every_x_sec,
+            external_input_enabled: settings.external_input_enabled,
+            dev_mode: settings.dev_mode,
         }
     }
 }
@@ -711,6 +747,7 @@ impl HardwareController {
         op_state
     }
 
+    #[allow(dead_code)]
     fn executer_on(&mut self, op_state: OpState) -> OpState {
         println!("switch on now");
         if let Ok(secs) = self.executer.resume() {

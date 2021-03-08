@@ -10,7 +10,8 @@ pub struct Settings {
     pub motor_z: SettingsMotor,
     pub calibrate_z_gpio: Option<u8>,
     pub on_off_gpio: Option<u8>,
-    pub switch_on_off_delay: f64,
+    pub on_off_switch_delay: f64,
+    pub on_off_invert: bool,
     pub input_dir: Vec<String>,
     pub input_update_reduce: u32,
     pub default_speed: f64,
@@ -18,7 +19,7 @@ pub struct Settings {
     pub scale: f64,
     pub invert_z: bool,
     pub show_console_output: bool,
-    pub console_pos_update_reduce: u32,
+    pub pos_update_every_x_sec: f64,
     #[serde(default)]
     pub external_input_enabled: bool,
 }
@@ -71,7 +72,8 @@ impl Default for Settings {
             },
             calibrate_z_gpio: Some(16),
             on_off_gpio: Some(13),
-            switch_on_off_delay: 3.5f64,
+            on_off_switch_delay: 3.5f64,
+            on_off_invert: false,
             input_dir: vec![String::from(".")],
             input_update_reduce: 10u32,
             default_speed: 360.0f64,
@@ -79,7 +81,7 @@ impl Default for Settings {
             scale: 1.0f64,
             invert_z: false,
             show_console_output: false,
-            console_pos_update_reduce: 50u32,
+            pos_update_every_x_sec: 0.2f64,
             external_input_enabled: false,
         }
     }

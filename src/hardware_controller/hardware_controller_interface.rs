@@ -43,6 +43,7 @@ impl HardwareControllerInterface {
         self.instruction_sender.send(instruction)
     }
 
+    #[allow(dead_code)]
     pub fn set_settings(
         &mut self,
         settings: SettingsHardwareController,

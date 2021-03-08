@@ -1,5 +1,5 @@
 #![allow(clippy::too_many_arguments)]
-use super::{Driver, MotorSettings, Result};
+use super::{Driver, Result, SettingsMotor};
 use crate::io::Switch;
 use crate::types::Direction;
 use rppal::gpio::{Gpio, OutputPin};
@@ -12,9 +12,7 @@ pub struct StepMotor {
     direction: OutputPin,
     invert_dir: bool,
     enable: Option<OutputPin>,
-    max_step_speed: u64, // steps per min
-    step_pos: i32,       // + - from the reset point
-    step_size: f64,      // mm per step
+    step_pos: i32, // + - from the reset point
     end_switch_left: Option<Switch>,
     end_switch_right: Option<Switch>,
     current_direction: Direction,
@@ -28,10 +26,8 @@ impl StepMotor {
         ena: Option<u8>,
         end_left: Option<u8>,
         end_right: Option<u8>,
-        max_step_speed: u64,
-        step_size: f64,
     ) -> Self {
-        let name = format!("Stepper p{} d{} ", pull, dir);
+        let name = format!("Stepper p:{} d:{} inv:{}", pull, dir, invert_dir);
         let ena_gpio = ena.map(|pin| Gpio::new().unwrap().get(pin).unwrap().into_output());
         let left = end_left.map(|pin| Switch::new(pin, true));
         let right = end_right.map(|pin| Switch::new(pin, true));
@@ -46,27 +42,23 @@ impl StepMotor {
             invert_dir,
             enable: ena_gpio,
             step_pos: 0i32,
-            max_step_speed,
-            step_size,
             end_switch_left: left,
             end_switch_right: right,
             current_direction: Direction::Left,
         }
     }
-    pub fn from_settings(settings: MotorSettings) -> Self {
+    pub fn from_settings(settings: SettingsMotor) -> Self {
         StepMotor::new(
-            settings.pull_gpio,             // 18,
-            settings.dir_gpio,              // 27,
-            settings.invert_dir,            // false,
-            settings.ena_gpio,              // None,
-            settings.end_left_gpio,         // Some(21),
-            settings.end_right_gpio,        // Some(20),
-            settings.max_step_speed.into(), // speed,
-            settings.step_size,             // 0.004f64,
+            settings.pull_gpio,      // 18,
+            settings.dir_gpio,       // 27,
+            settings.invert_dir,     // false,
+            settings.ena_gpio,       // None,
+            settings.end_left_gpio,  // Some(21),
+            settings.end_right_gpio, // Some(20),
         )
     }
     fn is_blocked(&mut self) -> bool {
-        let switch_opt = match (self.current_direction.clone(), self.invert_dir) {
+        let switch_opt = match (self.current_direction, self.invert_dir) {
             (Direction::Left, false) => self.end_switch_left.as_mut(),
             (Direction::Left, true) => self.end_switch_right.as_mut(),
             (Direction::Right, false) => self.end_switch_right.as_mut(),
@@ -86,17 +78,14 @@ impl Driver for StepMotor {
                 (Direction::Right, true, true) => self.direction.set_low(),
                 _ => (),
             }
-            self.current_direction = direction.clone();
+            self.current_direction = *direction;
         }
         if self.is_blocked() {
             Err("is blocked at end")
         } else {
             self.pull.toggle();
-            Ok(self.current_direction.clone())
+            Ok(self.current_direction)
         }
-    }
-    fn get_step_size(&self) -> f64 {
-        self.step_size
     }
     fn is_blocked(&mut self) -> Option<Direction> {
         if let Some(switch) = self.end_switch_left.as_mut() {

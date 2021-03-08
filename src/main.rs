@@ -1,7 +1,8 @@
 mod app;
 mod gnc;
+mod hardware_controller;
 mod io;
-mod motor;
+mod settings;
 mod types;
 mod ui;
 

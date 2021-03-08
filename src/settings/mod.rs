@@ -1,4 +1,3 @@
-use crate::motor::MotorSettings;
 use serde::{Deserialize, Serialize};
 use std::{env, fs};
 
@@ -6,9 +5,9 @@ use std::{env, fs};
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
     pub dev_mode: bool,
-    pub motor_x: MotorSettings,
-    pub motor_y: MotorSettings,
-    pub motor_z: MotorSettings,
+    pub motor_x: SettingsMotor,
+    pub motor_y: SettingsMotor,
+    pub motor_z: SettingsMotor,
     pub calibrate_z_gpio: Option<u8>,
     pub on_off_gpio: Option<u8>,
     pub switch_on_off_delay: f64,
@@ -28,7 +27,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             dev_mode: false,
-            motor_x: MotorSettings {
+            motor_x: SettingsMotor {
                 max_step_speed: 200,
                 pull_gpio: 18,
                 dir_gpio: 27,
@@ -42,7 +41,7 @@ impl Default for Settings {
                 free_step_speed: 20.0f64,
                 acceleration_time_scale: 2.0f64,
             },
-            motor_y: MotorSettings {
+            motor_y: SettingsMotor {
                 max_step_speed: 200,
                 pull_gpio: 22,
                 dir_gpio: 23,
@@ -56,7 +55,7 @@ impl Default for Settings {
                 free_step_speed: 20.0f64,
                 acceleration_time_scale: 2.0f64,
             },
-            motor_z: MotorSettings {
+            motor_z: SettingsMotor {
                 max_step_speed: 200,
                 pull_gpio: 25,
                 dir_gpio: 24,
@@ -84,6 +83,30 @@ impl Default for Settings {
             external_input_enabled: false,
         }
     }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingsMotor {
+    pub max_step_speed: u32,
+    pub pull_gpio: u8,
+    pub dir_gpio: u8,
+    pub invert_dir: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ena_gpio: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_left_gpio: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub end_right_gpio: Option<u8>,
+    pub step_size: f64,
+    // max acceleration constance
+    pub acceleration: f64,
+    // reduce the acceleration on higher speed,
+    pub acceleration_damping: f64,
+    // speed that requires no acceleration. It just runs with that.
+    pub free_step_speed: f64,
+    // value to adjust UI Graph
+    pub acceleration_time_scale: f64,
 }
 
 impl Settings {

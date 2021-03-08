@@ -5,14 +5,12 @@ use std::fmt::Debug;
 #[derive(Debug)]
 pub struct MockMotor {
     current_direction: Direction,
-    step_size: f64,
 }
 
 impl MockMotor {
-    pub fn new(step_size: f64) -> Self {
+    pub fn new() -> Self {
         MockMotor {
             current_direction: Direction::Left,
-            step_size,
         }
     }
 }
@@ -23,10 +21,7 @@ impl Driver for MockMotor {
             self.current_direction = direction.clone();
         };
 
-        Ok(direction.clone())
-    }
-    fn get_step_size(&self) -> f64 {
-        self.step_size
+        Ok(*direction)
     }
     fn is_blocked(&mut self) -> Option<Direction> {
         None

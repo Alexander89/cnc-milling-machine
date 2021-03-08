@@ -1,5 +1,5 @@
 #![allow(clippy::too_many_arguments)]
-use crate::motor::MotorSettings;
+use crate::settings::SettingsMotor;
 use crate::types::Location;
 use actix::prelude::{Message, Recipient};
 use serde::{Deserialize, Serialize};
@@ -218,9 +218,9 @@ pub enum WsReplyMessage {
     #[serde(rename_all = "camelCase")]
     SystemSettings {
         dev_mode: bool,
-        motor_x: MotorSettings,
-        motor_y: MotorSettings,
-        motor_z: MotorSettings,
+        motor_x: SettingsMotor,
+        motor_y: SettingsMotor,
+        motor_z: SettingsMotor,
         #[serde(skip_serializing_if = "Option::is_none")]
         calibrate_z_gpio: Option<u8>,
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -313,9 +313,9 @@ pub enum WsCommandSettings {
 #[serde(rename_all = "camelCase")]
 pub struct WsCommandSettingsSetSystemSettings {
     pub dev_mode: bool,
-    pub motor_x: MotorSettings,
-    pub motor_y: MotorSettings,
-    pub motor_z: MotorSettings,
+    pub motor_x: SettingsMotor,
+    pub motor_y: SettingsMotor,
+    pub motor_z: SettingsMotor,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub calibrate_z_gpio: Option<u8>,
     #[serde(skip_serializing_if = "Option::is_none")]

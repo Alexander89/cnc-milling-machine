@@ -6,38 +6,18 @@ use std::{
     ops::{Add, Div, Mul, Neg, Sub},
 };
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 pub enum MachineState {
     Idle,
-    ManualTask,
-    ProgramTask,
+    Manual,
+    Program,
     Calibrate,
+    Paused,
+    WaitForInput,
     Unknown,
 }
-impl Into<u32> for MachineState {
-    fn into(self) -> u32 {
-        match self {
-            MachineState::Idle => 0,
-            MachineState::ManualTask => 1,
-            MachineState::ProgramTask => 2,
-            MachineState::Calibrate => 3,
-            MachineState::Unknown => 99,
-        }
-    }
-}
-impl Into<MachineState> for u32 {
-    fn into(self) -> MachineState {
-        match self {
-            0 => MachineState::Idle,
-            1 => MachineState::ManualTask,
-            2 => MachineState::ProgramTask,
-            3 => MachineState::Calibrate,
-            _ => MachineState::Unknown,
-        }
-    }
-}
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Copy, Clone)]
 pub enum Direction {
     Left,
     Right,
@@ -88,6 +68,9 @@ impl Location<f64> {
     pub fn min(&self) -> f64 {
         self.x.min(self.y).min(self.z)
     }
+    pub fn is_null(&self) -> bool {
+        self.x == 0.0 && self.y == 0.0 && self.z == 0.0
+    }
 }
 
 impl Location<i64> {
@@ -98,8 +81,9 @@ impl Location<i64> {
             z: self.z.abs() as u64,
         }
     }
-    pub fn distance_sq(&self) -> i64 {
-        self.x * self.x + self.y * self.y + self.z * self.z
+    pub fn distance_sq(&self) -> u64 {
+        let u_pos = self.abs();
+        u_pos.x * u_pos.x + u_pos.y * u_pos.y + u_pos.z * u_pos.z
     }
     pub fn identity() -> Self {
         Self { x: 1, y: 1, z: 1 }

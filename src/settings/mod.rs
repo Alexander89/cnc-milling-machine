@@ -37,8 +37,11 @@ impl Default for Settings {
                 end_left_gpio: Some(21),
                 end_right_gpio: Some(20),
                 step_size: 0.004f64,
-                acceleration: 5.7f64,
-                acceleration_damping: 0.0009f64,
+                // acceleration constance
+                acceleration: 1.0f64,
+                // deceleration constance
+                deceleration: 1.0f64,
+                //acceleration_damping: 0.0009f64,
                 free_step_speed: 20.0f64,
                 acceleration_time_scale: 2.0f64,
             },
@@ -51,8 +54,11 @@ impl Default for Settings {
                 end_left_gpio: Some(19),
                 end_right_gpio: Some(26),
                 step_size: 0.004f64,
-                acceleration: 5.7f64,
-                acceleration_damping: 0.0009f64,
+                // acceleration constance
+                acceleration: 1.0f64,
+                // deceleration constance
+                deceleration: 1.0f64,
+                //acceleration_damping: 0.0009f64,
                 free_step_speed: 20.0f64,
                 acceleration_time_scale: 2.0f64,
             },
@@ -65,8 +71,11 @@ impl Default for Settings {
                 end_left_gpio: Some(5),
                 end_right_gpio: Some(6),
                 step_size: 0.004f64,
-                acceleration: 5.7f64,
-                acceleration_damping: 0.0009f64,
+                // acceleration constance
+                acceleration: 1.0f64,
+                // deceleration constance
+                deceleration: 1.0f64,
+                //acceleration_damping: 0.0009f64,
                 free_step_speed: 20.0f64,
                 acceleration_time_scale: 2.0f64,
             },
@@ -101,10 +110,12 @@ pub struct SettingsMotor {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_right_gpio: Option<u8>,
     pub step_size: f64,
-    // max acceleration constance
+    // acceleration constance
     pub acceleration: f64,
+    // deceleration constance
+    pub deceleration: f64,
     // reduce the acceleration on higher speed,
-    pub acceleration_damping: f64,
+    // pub acceleration_damping: f64,
     // speed that requires no acceleration. It just runs with that.
     pub free_step_speed: f64,
     // value to adjust UI Graph
@@ -118,8 +129,7 @@ impl Settings {
             serde_yaml::from_str(&data).unwrap()
         } else {
             let s = Settings::default();
-            let data = serde_yaml::to_string(&s).unwrap();
-            fs::write(file_path_2, data).expect("Unable to write file");
+            s.write_to_file(file_path).expect("can not save settings to disk");
             s
         };
 

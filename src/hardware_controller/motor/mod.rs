@@ -17,6 +17,10 @@ pub struct SettingsMotor {
     pub ena_gpio: Option<u8>,
     pub end_left_gpio: Option<u8>,
     pub end_right_gpio: Option<u8>,
+    // acceleration constance
+    pub acceleration: f64,
+    // deceleration constance
+    pub deceleration: f64,
 }
 
 pub trait Driver: std::fmt::Debug {

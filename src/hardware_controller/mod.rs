@@ -24,12 +24,10 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use self::{
-    hardware_feedback::{HardwareFeedback, PosData},
-    motor::{Driver, MockMotor, StepMotor},
-};
+use self::motor::{Driver, MockMotor, StepMotor};
 pub use hardware_controller_interface::*;
 pub use instruction::*;
+pub use hardware_feedback::{PosData, HardwareFeedback};
 
 #[derive(Clone, Debug)]
 pub struct SettingsHardwareController {
@@ -56,6 +54,8 @@ impl SettingsHardwareController {
                 ena_gpio: None,       //Option<u8>,
                 end_left_gpio: None,  //Option<u8>,
                 end_right_gpio: None, //Option<u8>,
+                acceleration: 0.01,
+                deceleration: 0.02,
             },
             motor_y: SettingsMotor {
                 pull_gpio: 1,         //u8,
@@ -64,6 +64,8 @@ impl SettingsHardwareController {
                 ena_gpio: None,       //Option<u8>,
                 end_left_gpio: None,  //Option<u8>,
                 end_right_gpio: None, //Option<u8>,
+                acceleration: 0.01,
+                deceleration: 0.02,
             },
             motor_z: SettingsMotor {
                 pull_gpio: 1,         //u8,
@@ -72,6 +74,8 @@ impl SettingsHardwareController {
                 ena_gpio: None,       //Option<u8>,
                 end_left_gpio: None,  //Option<u8>,
                 end_right_gpio: None, //Option<u8>,
+                acceleration: 0.01,
+                deceleration: 0.02,
             },
             calibrate_z_gpio: Some(1),
             on_off_gpio: Some(2),
@@ -91,6 +95,8 @@ impl SettingsHardwareController {
                 ena_gpio: settings.motor_x.ena_gpio,       //Option<u8>,
                 end_left_gpio: settings.motor_x.end_left_gpio,  //Option<u8>,
                 end_right_gpio: settings.motor_x.end_right_gpio, //Option<u8>,
+                acceleration: settings.motor_x.acceleration / 1e6,
+                deceleration: settings.motor_x.deceleration / 1e6,
             },
             motor_y: SettingsMotor {
                 pull_gpio: settings.motor_y.pull_gpio,         //u8,
@@ -99,6 +105,8 @@ impl SettingsHardwareController {
                 ena_gpio: settings.motor_y.ena_gpio,       //Option<u8>,
                 end_left_gpio: settings.motor_y.end_left_gpio,  //Option<u8>,
                 end_right_gpio: settings.motor_y.end_right_gpio, //Option<u8>,
+                acceleration: settings.motor_y.acceleration / 1e6,
+                deceleration: settings.motor_y.deceleration / 1e6,
             },
             motor_z: SettingsMotor {
                 pull_gpio: settings.motor_z.pull_gpio,         //u8,
@@ -107,6 +115,8 @@ impl SettingsHardwareController {
                 ena_gpio: settings.motor_z.ena_gpio,       //Option<u8>,
                 end_left_gpio: settings.motor_z.end_left_gpio,  //Option<u8>,
                 end_right_gpio: settings.motor_z.end_right_gpio, //Option<u8>,
+                acceleration: settings.motor_z.acceleration / 1e6,
+                deceleration: settings.motor_z.deceleration / 1e6,
             },
             calibrate_z_gpio: settings.calibrate_z_gpio,
             on_off_gpio: settings.on_off_gpio,

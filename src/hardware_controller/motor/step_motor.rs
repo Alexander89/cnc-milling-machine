@@ -1,17 +1,16 @@
 #![allow(clippy::too_many_arguments)]
 use super::{Driver, Result, SettingsMotor};
-use crate::io::Switch;
+use crate::io::{Switch, Actor};
 use crate::types::Direction;
-use rppal::gpio::{Gpio, OutputPin};
 use std::fmt::Debug;
 
 #[derive(Debug)]
 pub struct StepMotor {
     name: String,
-    pull: OutputPin,
-    direction: OutputPin,
+    pull: Actor,
+    direction: Actor,
     invert_dir: bool,
-    enable: Option<OutputPin>,
+    enable: Option<Actor>,
     step_pos: i32, // + - from the reset point
     end_switch_left: Option<Switch>,
     end_switch_right: Option<Switch>,
@@ -28,17 +27,14 @@ impl StepMotor {
         end_right: Option<u8>,
     ) -> Self {
         let name = format!("Stepper p:{} d:{} inv:{}", pull, dir, invert_dir);
-        let ena_gpio = ena.map(|pin| Gpio::new().unwrap().get(pin).unwrap().into_output());
+        let ena_gpio = ena.map(|pin| Actor::new(pin, false, false));
         let left = end_left.map(|pin| Switch::new(pin, true));
         let right = end_right.map(|pin| Switch::new(pin, true));
 
-        let mut direction = Gpio::new().unwrap().get(dir).unwrap().into_output();
-        direction.set_low();
-
         StepMotor {
             name,
-            pull: Gpio::new().unwrap().get(pull).unwrap().into_output(),
-            direction,
+            pull: Actor::new(pull, false, false),
+            direction: Actor::new(dir, false, false),
             invert_dir,
             enable: ena_gpio,
             step_pos: 0i32,
@@ -71,7 +67,7 @@ impl StepMotor {
 impl Driver for StepMotor {
     fn do_step(&mut self, direction: &Direction) -> Result<Direction> {
         if self.current_direction != *direction {
-            match (direction, self.invert_dir, self.direction.is_set_high()) {
+            match (direction, self.invert_dir, self.direction.is_high()) {
                 (Direction::Left, false, true) => self.direction.set_low(),
                 (Direction::Left, true, false) => self.direction.set_high(),
                 (Direction::Right, false, false) => self.direction.set_high(),

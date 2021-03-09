@@ -1,8 +1,8 @@
 #![allow(dead_code)]
-use std::convert::{From, Into};
 use std::{
+    convert::{From, Into},
     cmp::PartialOrd,
-    fmt::{self, Debug, Display},
+    fmt::{self, Debug, Display, Formatter, Result},
     ops::{Add, Div, Mul, Neg, Sub},
 };
 
@@ -15,6 +15,20 @@ pub enum MachineState {
     Paused,
     WaitForInput,
     Unknown,
+}
+
+impl Display for MachineState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        match self {
+            Self::Idle => write!(f, "Idle"),
+            Self::Manual => write!(f, "Manual"),
+            Self::Program => write!(f, "Program"),
+            Self::Calibrate => write!(f, "Calibrate"),
+            Self::Paused => write!(f, "Paused"),
+            Self::WaitForInput => write!(f, "WaitForInput"),
+            Self::Unknown => write!(f, "Unknown"),
+        }
+    }
 }
 
 #[derive(PartialEq, Copy, Clone)]

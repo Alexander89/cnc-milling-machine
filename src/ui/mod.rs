@@ -1,42 +1,56 @@
 mod console;
 mod types;
 
-use futures::executor::ThreadPool;
+//use futures::executor::ThreadPool;
+use console::Console;
 
-use crate::{settings::SettingsUi, types::MachineState};
+use crate::{
+    app::{ConsoleOut, SystemPublisher, SystemSubscriber},
+    settings::SettingsUi
+};
 
-use self::{types::{Mode, UiCommandControl, UiCommandController, UiCommandProgram, UiCommandSettings, UiCommands, UiCommandsFrom, UiMessages}};
-use std::{fs::{OpenOptions, remove_file}, sync::mpsc::{channel, Sender, Receiver}, thread::{self, JoinHandle}, time::Duration};
-
-pub struct Ui {
-    ui_thread: JoinHandle<()>,
-}
+pub struct Ui;
 
 impl Ui {
-    pub fn new(settings: SettingsUi) -> Ui {
-        let ui_thread = thread::spawn(move || {
+    pub fn new(event_publish: SystemPublisher, event_subscribe: SystemSubscriber, out: ConsoleOut, settings: SettingsUi) -> Ui {
+
+        /* if settings.web {
             let pool = ThreadPool::new().expect("Failed to build pool");
-            let ui = UiState {
-                pool,
-
-                available_progs: Vec::new(),
-                program_select_cursor: 0,
-                selected_program: None,
-
-                in_opp: false,
-                current_mode: MachineState::Idle,
-                calibrated: false,
-                steps_todo: 0,
-                steps_done: 0,
-            };
-            ui.poll();
-        });
-        Ui {
-            ui_thread
+            pool.spawn_ok(async {
+                ui_main(
+                    cmd_sender,
+                    data_receiver,
+                    pos_msg,
+                    status_msg,
+                    controller_msg,
+                )
+                .expect("could not start WS-server");
+            });
+        } */
+        if settings.console {
+            Console::new(event_publish, event_subscribe, out);
         }
+
+        // let ui_thread = thread::spawn(move || {
+        //     let ui = UiState {
+        //         pool,
+
+        //         available_progs: Vec::new(),
+        //         program_select_cursor: 0,
+        //         selected_program: None,
+
+        //         in_opp: false,
+        //         current_mode: MachineState::Idle,
+        //         calibrated: false,
+        //         steps_todo: 0,
+        //         steps_done: 0,
+        //     };
+        //     ui.poll();
+        // });
+        Ui {}
     }
 }
-
+/*
 pub struct UiState {
     pool: ThreadPool,
 
@@ -167,3 +181,4 @@ impl UiState {
         };
     }
 }
+ */

@@ -97,8 +97,8 @@ impl Default for Settings {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SettingsUi {
-    console: bool,
-    web: bool,
+    pub console: bool,
+    pub web: bool,
 }
 impl Default for SettingsUi {
     fn default() -> Self {

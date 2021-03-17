@@ -14,15 +14,7 @@ pub use xbox_controller::XBoxController;
 pub use console_controller::ConsoleController;
 
 
-// pub struct System {
-//     sessions: HashMap<Uuid, Connection>,
-//     sender: WsSender,
-//     receiver: WsReceiver,
-//     last_state: SystemState,
-// }
-
 #[derive(Debug)]
-/// Define Control actor
 pub struct Control {
     controller_thread: thread::JoinHandle<()>,
 }
@@ -31,16 +23,16 @@ impl Control {
     pub fn new(event_publish: SystemPublisher, event_subscribe: SystemSubscriber, settings: SettingsControl) -> Control {
         let controller_thread = thread::spawn(move || {
             let mut controller: Vec<Box<dyn Controller>> = vec!();
-            let mut ctl = ConsoleController::new(event_publish.clone());
+            let ctl = ConsoleController::new(event_publish.clone());
             controller.push(Box::new(ctl));
 
-            if let Ok(mut xbox_res) = XBoxController::new(event_publish.clone()) {
+            if let Ok(xbox_res) = XBoxController::new(event_publish.clone()) {
                 controller.push(Box::new(xbox_res));
             }
 
             let mut op_state = ControlState::default();
-            loop {
-                thread::sleep(Duration::from_millis(100));
+            'main: loop {
+                thread::sleep(Duration::from_millis(1000 / settings.input_update_per_sec));
                 if let Ok(SystemEvents::ControlCommands(cmd)) = event_subscribe.try_recv() {
                     match cmd {
                         ControlCommands::FreezeChannel(Channel::X, value) => op_state.freeze_x = value,
@@ -51,12 +43,12 @@ impl Control {
                     }
                 }
 
-                for ref mut ctrl in controller {
-                    match ctl.poll(op_state) {
-                        Ok(new_state) => op_state = new_state,
+                for ctrl in controller.iter_mut() {
+                    op_state = match ctrl.poll(op_state) {
+                        Ok(new_state) => new_state,
                         Err(e) => {
                             println!("shutdown controller thread {:?}", e);
-                            break;
+                            break 'main;
                         },
                     }
                 }
@@ -107,12 +99,12 @@ pub enum UserControlInput {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SettingsControl {
-    input_update_reduce: u32
+    input_update_per_sec: u64
 }
 impl Default for SettingsControl {
     fn default() -> Self {
         Self {
-            input_update_reduce: 100u32,
+            input_update_per_sec: 10u64,
         }
     }
 }

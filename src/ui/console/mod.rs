@@ -16,29 +16,29 @@ use crate::{
 #[macro_export]
 macro_rules! printScreen {
     ($out:expr, $text:expr, $x:expr, $y:expr) => ({
-        let lock = $out.lock().unwrap();
+        let mut lock = $out.lock().unwrap();
         write!( lock, "{}", termion::cursor::Goto($x, $y) ).unwrap();
         write!( lock, $text ).unwrap();
     });
     ($out:expr, $text:expr, $x:expr, $y:expr, $($arg:tt)* ) => ({
-        let lock = $out.lock().unwrap();
+        let mut lock = $out.lock().unwrap();
         write!( lock, "{}", termion::cursor::Goto($x, $y) ).unwrap();
         write!( lock, $text, $($arg)* ).unwrap();
     });
 }
 
 
-struct Console {
+pub struct Console {
     ui_thread: JoinHandle<()>
 }
 
 impl Console {
-    pub fn new(event_publish: SystemPublisher, event_subscribe: SystemSubscriber, out: Arc<Mutex<RawTerminal<Stdout>>>) -> Self {
+    pub fn new(_event_publish: SystemPublisher, event_subscribe: SystemSubscriber, out: Arc<Mutex<RawTerminal<Stdout>>>) -> Self {
         out.lock().unwrap().flush().unwrap();
         printScreen!(out, "{}{}Welcome to the Rusty-CNC", 1, 1, termion::clear::All, termion::cursor::Hide);
         out.lock().unwrap().flush().unwrap();
 
-        let ui_thread = thread::spawn(|| {
+        let ui_thread = thread::spawn(move || {
             'main: loop {
                 if let Ok(event) = event_subscribe.recv() {
                     match event {

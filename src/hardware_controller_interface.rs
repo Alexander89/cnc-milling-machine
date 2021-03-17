@@ -32,19 +32,19 @@ impl HardwareControllerInterface {
                 while let Ok(event) = event_subscribe.try_recv() {
                     match event {
                         SystemEvents::Terminate => {
-                            inner_instruction_sender.send(Instruction::Shutdown);
+                            let _ = inner_instruction_sender.send(Instruction::Shutdown);
                             println!("terminate");
                             break 'main;
                         },
                         SystemEvents::ControlInput(UserControlInput::CalibrateZ) => {
-                            inner_instruction_sender.send(Instruction::Calibrate(InstructionCalibrate {
+                            let _ = inner_instruction_sender.send(Instruction::Calibrate(InstructionCalibrate {
                                 x: CalibrateType::None,
                                 y: CalibrateType::None,
                                 z: CalibrateType::ContactPin,
                             }));
                         },
                         SystemEvents::ControlInput(UserControlInput::ManualControl(dir)) => {
-                            inner_instruction_sender.send(Instruction::ManualMovement(InstructionManualMovement {
+                            let _ = inner_instruction_sender.send(Instruction::ManualMovement(InstructionManualMovement {
                                 speed: dir
                             }));
                         },

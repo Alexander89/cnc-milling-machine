@@ -1,16 +1,12 @@
 pub struct App;
-use std::{sync::{Arc, Mutex}, thread, time::Duration};
-use termion::raw::IntoRawMode;
-use std::io::{Write, stdout};
+use std::{io::Stdout, sync::{Arc, Mutex}, thread, time::Duration};
+use termion::raw::{IntoRawMode, RawTerminal};
+use std::io::stdout;
 use crossbeam_channel::{unbounded, Sender, Receiver};
 
 use crate::{control::{ControlCommands, UserControlInput, Control}, hardware_controller::{
-        InstructionCalibrate,
-        InstructionManualMovement,
         HardwareFeedback,
-        PosData,
         instruction::{
-            CalibrateType,
             Instruction
         }
     }, settings::Settings
@@ -18,14 +14,15 @@ use crate::{control::{ControlCommands, UserControlInput, Control}, hardware_cont
 
 use crate::hardware_controller_interface::HardwareControllerInterface;
 use super::hardware_controller::SettingsHardwareController;
-use super::ui::UI;
+use super::ui::Ui;
 
 const SETTINGS_PATH: &str = "./settings.yaml";
-
 pub enum SystemEvents {
+    #[allow(dead_code)]
     HardwareInstruction(Instruction),
     HardwareFeedback(HardwareFeedback),
     ControlInput(UserControlInput),
+    #[allow(dead_code)]
     ControlCommands(ControlCommands),
     Terminate,
     //UI(UiMessages),
@@ -34,6 +31,7 @@ pub enum SystemEvents {
 
 pub type SystemPublisher = Sender<SystemEvents>;
 pub type SystemSubscriber = Receiver<SystemEvents>;
+pub type ConsoleOut = Arc<Mutex<RawTerminal<Stdout>>>;
 
 impl App {
     pub fn start() {
@@ -41,16 +39,16 @@ impl App {
         let (event_publish, event_subscribe) = unbounded::<SystemEvents>();
 
         let settings = Settings::from_file(SETTINGS_PATH);
-        let out = Arc::new(Mutex::new(stdout().into_raw_mode().unwrap()));
+        let out: ConsoleOut = Arc::new(Mutex::new(stdout().into_raw_mode().unwrap()));
 
         // create modules
 
-        let mut hardware_modul = HardwareControllerInterface::new(event_publish.clone(), event_subscribe.clone(), SettingsHardwareController::from(settings));
-        let controller_modul = Control::new(event_publish.clone(), event_subscribe.clone(), settings.control);
-        let ui_modul = UI::new(settings.ui);
+        let _hardware_modul = HardwareControllerInterface::new(event_publish.clone(), event_subscribe.clone(), SettingsHardwareController::from(settings.clone()));
+        let _controller_modul = Control::new(event_publish.clone(), event_subscribe.clone(), settings.control.clone());
+        let _ui_modul = Ui::new(event_publish.clone(), event_subscribe.clone(), out.clone(), settings.ui.clone());
 
         // wait before flushing the
-        thread::sleep(Duration::from_millis(200));
+        thread::sleep(Duration::from_millis(100));
 
 
         'main: loop {
@@ -63,9 +61,9 @@ impl App {
                     _ => ()
                 }
             }
-            thread::sleep(Duration::from_millis(100));
+            thread::sleep(Duration::from_millis(250));
         }
+        thread::sleep(Duration::from_millis(1000));
         out.lock().unwrap().suspend_raw_mode().unwrap();
-        println!("");
     }
 }

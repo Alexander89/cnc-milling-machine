@@ -1,6 +1,6 @@
-use crate::ui::types::{
-    Connect, Disconnect, WsCommandsFrom, WsConnectedMessage, WsControllerMessage, WsMessages,
-    WsPositionMessage, WsStatusMessage,
+use crate::web::types::{
+    Connect, Disconnect, UiCommandsFrom, UiConnectedMessage, UiControllerMessage, UiMessages,
+    UiPositionMessage, UiStatusMessage,
 };
 use actix::{Actor, Addr, Context, Handler, Recipient};
 use crossbeam_channel::{Receiver, Sender};
@@ -8,15 +8,15 @@ use std::collections::HashMap;
 use std::thread;
 use uuid::Uuid;
 
-type Connection = Recipient<WsMessages>;
-type WsReceiver = Receiver<WsMessages>;
-type WsSender = Sender<WsCommandsFrom>;
+type Connection = Recipient<UiMessages>;
+type WsReceiver = Receiver<UiMessages>;
+type WsSender = Sender<UiCommandsFrom>;
 
 #[derive(Debug, Clone)]
 pub struct SystemState {
-    position: WsPositionMessage,
-    status: WsStatusMessage,
-    controller: WsControllerMessage,
+    position: UiPositionMessage,
+    status: UiStatusMessage,
+    controller: UiControllerMessage,
 }
 
 /// Define System actor
@@ -38,9 +38,9 @@ impl System {
     pub fn new(
         sender: WsSender,
         receiver: WsReceiver,
-        position: WsPositionMessage,
-        status: WsStatusMessage,
-        controller: WsControllerMessage,
+        position: UiPositionMessage,
+        status: UiStatusMessage,
+        controller: UiControllerMessage,
     ) -> Addr<System> {
         let sys = System {
             sessions: HashMap::<Uuid, Connection>::new(),
@@ -66,12 +66,12 @@ impl System {
 
         sys_actor
     }
-    fn send_message(&self, msg: WsMessages) {
+    fn send_message(&self, msg: UiMessages) {
         self.sessions
             .iter()
             .for_each(|(id, _)| self.send_message_to(msg.clone(), id))
     }
-    fn send_message_to(&self, msg: WsMessages, id_to: &Uuid) {
+    fn send_message_to(&self, msg: UiMessages, id_to: &Uuid) {
         if let Some(socket_recipient) = self.sessions.get(id_to) {
             socket_recipient.do_send(msg).unwrap();
         } else {
@@ -86,20 +86,20 @@ impl Handler<Connect> for System {
     fn handle(&mut self, msg: Connect, _: &mut SystemCtx) -> Self::Result {
         println!("add message {}", msg.self_id);
         self.sessions.insert(msg.self_id, msg.addr);
-        let welcome = WsMessages::Connected(WsConnectedMessage {
+        let welcome = UiMessages::Connected(UiConnectedMessage {
             id: msg.self_id.to_string(),
         });
         self.send_message_to(welcome, &msg.self_id);
         self.send_message_to(
-            WsMessages::Position(self.last_state.position.clone()),
+            UiMessages::Position(self.last_state.position.clone()),
             &msg.self_id,
         );
         self.send_message_to(
-            WsMessages::Controller(self.last_state.controller.clone()),
+            UiMessages::Controller(self.last_state.controller.clone()),
             &msg.self_id,
         );
         self.send_message_to(
-            WsMessages::Status(self.last_state.status.clone()),
+            UiMessages::Status(self.last_state.status.clone()),
             &msg.self_id,
         );
     }
@@ -115,20 +115,20 @@ impl Handler<Disconnect> for System {
     }
 }
 
-impl Handler<WsMessages> for System {
+impl Handler<UiMessages> for System {
     type Result = ();
 
-    fn handle(&mut self, msg: WsMessages, _: &mut SystemCtx) -> Self::Result {
-        if let WsMessages::Reply { to, msg } = msg {
-            let new_msg = WsMessages::Reply { to, msg };
+    fn handle(&mut self, msg: UiMessages, _: &mut SystemCtx) -> Self::Result {
+        if let UiMessages::Reply { to, msg } = msg {
+            let new_msg = UiMessages::Reply { to, msg };
             self.send_message_to(new_msg, &to);
         } else {
             match msg {
-                WsMessages::Controller(ref controller) => {
+                UiMessages::Controller(ref controller) => {
                     self.last_state.controller = controller.clone()
                 }
-                WsMessages::Position(ref position) => self.last_state.position = position.clone(),
-                WsMessages::Status(ref status) => self.last_state.status = status.clone(),
+                UiMessages::Position(ref position) => self.last_state.position = position.clone(),
+                UiMessages::Status(ref status) => self.last_state.status = status.clone(),
                 _ => (),
             }
             self.send_message(msg);
@@ -136,10 +136,10 @@ impl Handler<WsMessages> for System {
     }
 }
 
-impl Handler<WsCommandsFrom> for System {
+impl Handler<UiCommandsFrom> for System {
     type Result = ();
 
-    fn handle(&mut self, msg: WsCommandsFrom, _: &mut SystemCtx) -> Self::Result {
+    fn handle(&mut self, msg: UiCommandsFrom, _: &mut SystemCtx) -> Self::Result {
         self.sender.send(msg).unwrap();
     }
 }

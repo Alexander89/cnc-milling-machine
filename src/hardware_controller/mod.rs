@@ -1,5 +1,4 @@
 pub mod executer;
-pub mod hardware_controller_interface;
 pub mod hardware_feedback;
 pub mod instruction;
 pub mod motor;
@@ -10,22 +9,14 @@ use instruction::{CalibrateType, Instruction};
 use motor::{Motor, SettingsMotor};
 use types::*;
 
-use crate::{settings::Settings, types::{Direction, Location, MachineState}};
+use crate::{settings::{DriverType, Settings}, types::{Direction, Location, MachineState}};
 use crate::{
     io::Switch,
     types::{CircleStep, CircleStepCCW, CircleStepCW, CircleStepDir},
 };
-use crossbeam_channel::Sender as CbSender;
-use std::{
-    collections::LinkedList,
-    fmt::Debug,
-    sync::mpsc::Receiver,
-    thread,
-    time::{Duration, SystemTime},
-};
+use std::{collections::LinkedList, fmt::Debug, sync::mpsc::{Receiver, Sender}, thread, time::{Duration, SystemTime}};
 
-use self::motor::{Driver, MockMotor, StepMotor};
-pub use hardware_controller_interface::*;
+pub use super::hardware_controller_interface::HardwareControllerInterface;
 pub use instruction::*;
 pub use hardware_feedback::{PosData, HardwareFeedback};
 
@@ -48,32 +39,17 @@ impl SettingsHardwareController {
     pub fn mock() -> SettingsHardwareController {
         SettingsHardwareController {
             motor_x: SettingsMotor {
-                pull_gpio: 1,         //u8,
-                dir_gpio: 1,          //u8,
-                invert_dir: false,    //bool,
-                ena_gpio: None,       //Option<u8>,
-                end_left_gpio: None,  //Option<u8>,
-                end_right_gpio: None, //Option<u8>,
+                driver_settings: DriverType::Mock, //Option<u8>,
                 acceleration: 0.01,
                 deceleration: 0.02,
             },
             motor_y: SettingsMotor {
-                pull_gpio: 1,         //u8,
-                dir_gpio: 1,          //u8,
-                invert_dir: false,    //bool,
-                ena_gpio: None,       //Option<u8>,
-                end_left_gpio: None,  //Option<u8>,
-                end_right_gpio: None, //Option<u8>,
+                driver_settings: DriverType::Mock, //Option<u8>,
                 acceleration: 0.01,
                 deceleration: 0.02,
             },
             motor_z: SettingsMotor {
-                pull_gpio: 1,         //u8,
-                dir_gpio: 1,          //u8,
-                invert_dir: false,    //bool,
-                ena_gpio: None,       //Option<u8>,
-                end_left_gpio: None,  //Option<u8>,
-                end_right_gpio: None, //Option<u8>,
+                driver_settings: DriverType::Mock, //Option<u8>,
                 acceleration: 0.01,
                 deceleration: 0.02,
             },
@@ -89,32 +65,17 @@ impl SettingsHardwareController {
     pub fn from(settings: Settings) -> SettingsHardwareController {
         SettingsHardwareController {
             motor_x: SettingsMotor {
-                pull_gpio: settings.motor_x.pull_gpio,         //u8,
-                dir_gpio: settings.motor_x.dir_gpio,          //u8,
-                invert_dir: settings.motor_x.invert_dir,    //bool,
-                ena_gpio: settings.motor_x.ena_gpio,       //Option<u8>,
-                end_left_gpio: settings.motor_x.end_left_gpio,  //Option<u8>,
-                end_right_gpio: settings.motor_x.end_right_gpio, //Option<u8>,
+                driver_settings: settings.motor_x.driver_settings,
                 acceleration: settings.motor_x.acceleration / 1e6,
                 deceleration: settings.motor_x.deceleration / 1e6,
             },
             motor_y: SettingsMotor {
-                pull_gpio: settings.motor_y.pull_gpio,         //u8,
-                dir_gpio: settings.motor_y.dir_gpio,          //u8,
-                invert_dir: settings.motor_y.invert_dir,    //bool,
-                ena_gpio: settings.motor_y.ena_gpio,       //Option<u8>,
-                end_left_gpio: settings.motor_y.end_left_gpio,  //Option<u8>,
-                end_right_gpio: settings.motor_y.end_right_gpio, //Option<u8>,
+                driver_settings: settings.motor_y.driver_settings,
                 acceleration: settings.motor_y.acceleration / 1e6,
                 deceleration: settings.motor_y.deceleration / 1e6,
             },
             motor_z: SettingsMotor {
-                pull_gpio: settings.motor_z.pull_gpio,         //u8,
-                dir_gpio: settings.motor_z.dir_gpio,          //u8,
-                invert_dir: settings.motor_z.invert_dir,    //bool,
-                ena_gpio: settings.motor_z.ena_gpio,       //Option<u8>,
-                end_left_gpio: settings.motor_z.end_left_gpio,  //Option<u8>,
-                end_right_gpio: settings.motor_z.end_right_gpio, //Option<u8>,
+                driver_settings: settings.motor_z.driver_settings,
                 acceleration: settings.motor_z.acceleration / 1e6,
                 deceleration: settings.motor_z.deceleration / 1e6,
             },
@@ -145,7 +106,7 @@ pub struct HardwareController {
     instruction_queue: LinkedList<Instruction>,
 
     instruction_receiver: Receiver<Instruction>,
-    feedback_sender: CbSender<HardwareFeedback>,
+    feedback_sender: Sender<HardwareFeedback>,
 
     executer: Box<dyn Executer>,
     settings: SettingsHardwareController,
@@ -155,7 +116,7 @@ impl HardwareController {
     pub fn new(
         settings: SettingsHardwareController,
         instruction_receiver: Receiver<Instruction>,
-        feedback_sender: CbSender<HardwareFeedback>,
+        feedback_sender: Sender<HardwareFeedback>,
     ) -> HardwareController {
         let executer = settings
             .on_off_gpio
@@ -168,34 +129,11 @@ impl HardwareController {
             })
             .unwrap_or_else(|| Box::new(ManualSpindel::new(settings.on_off_switch_delay)));
 
-        let z_calibrate = settings.calibrate_z_gpio.map(|pin| Switch::new(pin, false));
-
-        let driver_x: Box<dyn Driver + Send> = if settings.dev_mode {
-            Box::new(MockMotor::new())
-        } else {
-            Box::new(StepMotor::from_settings(settings.motor_x.clone()))
-        };
-        let motor_x = Motor::new("x".to_string(), settings.motor_x.clone(), driver_x);
-
-        let driver_y: Box<dyn Driver + Send> = if settings.dev_mode {
-            Box::new(MockMotor::new())
-        } else {
-            Box::new(StepMotor::from_settings(settings.motor_y.clone()))
-        };
-        let motor_y = Motor::new("y".to_string(), settings.motor_y.clone(), driver_y);
-
-        let driver_z: Box<dyn Driver + Send> = if settings.dev_mode {
-            Box::new(MockMotor::new())
-        } else {
-            Box::new(StepMotor::from_settings(settings.motor_z.clone()))
-        };
-        let motor_z = Motor::new("z".to_string(), settings.motor_z.clone(), driver_z);
-
         HardwareController {
-            motor_x,
-            motor_y,
-            motor_z,
-            z_calibrate,
+            motor_x: Motor::new("x".to_string(), settings.motor_x.clone()),
+            motor_y: Motor::new("y".to_string(), settings.motor_y.clone()),
+            motor_z: Motor::new("z".to_string(), settings.motor_z.clone()),
+            z_calibrate: settings.calibrate_z_gpio.map(|pin| Switch::new(pin, false)),
 
             state: MachineState::Idle,
             pre_paused_state: MachineState::Idle,
@@ -228,26 +166,9 @@ impl HardwareController {
 
         self.z_calibrate = settings.calibrate_z_gpio.map(|pin| Switch::new(pin, false));
 
-        let driver_x: Box<dyn Driver + Send> = if settings.dev_mode {
-            Box::new(MockMotor::new())
-        } else {
-            Box::new(StepMotor::from_settings(settings.motor_x.clone()))
-        };
-        self.motor_x = Motor::new("x".to_string(), settings.motor_x, driver_x);
-
-        let driver_y: Box<dyn Driver + Send> = if settings.dev_mode {
-            Box::new(MockMotor::new())
-        } else {
-            Box::new(StepMotor::from_settings(settings.motor_y.clone()))
-        };
-        self.motor_y = Motor::new("y".to_string(), settings.motor_y, driver_y);
-
-        let driver_z: Box<dyn Driver + Send> = if settings.dev_mode {
-            Box::new(MockMotor::new())
-        } else {
-            Box::new(StepMotor::from_settings(settings.motor_z.clone()))
-        };
-        self.motor_z = Motor::new("z".to_string(), settings.motor_z, driver_z);
+        self.motor_x = Motor::new("x".to_string(), settings.motor_x);
+        self.motor_y = Motor::new("y".to_string(), settings.motor_y);
+        self.motor_z = Motor::new("z".to_string(), settings.motor_z);
 
         // reset the rest to get back to a fresh state
         self.set_state(MachineState::Idle);
@@ -260,7 +181,7 @@ impl HardwareController {
         self.instruction_queue = LinkedList::default();
     }
     fn try_send(&mut self, msg: HardwareFeedback) {
-        if let Err(e) = self.feedback_sender.try_send(msg) {
+        if let Err(e) = self.feedback_sender.send(msg) {
             println!("try-send failed {:?}", e);
         };
     }

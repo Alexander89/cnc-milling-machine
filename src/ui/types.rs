@@ -9,7 +9,7 @@ use uuid::Uuid;
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct Connect {
-    pub addr: Recipient<WsMessages>,
+    pub addr: Recipient<UiMessages>,
     pub self_id: Uuid,
 }
 
@@ -22,6 +22,7 @@ pub struct Disconnect {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Mode {
+    Idle,
     Manual,
     Program,
     Calibrate,
@@ -29,7 +30,7 @@ pub enum Mode {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct WsConnectedMessage {
+pub struct UiConnectedMessage {
     pub id: String,
 }
 
@@ -43,33 +44,33 @@ pub enum InfoLvl {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct WsInfoMessage {
+pub struct UiInfoMessage {
     pub lvl: InfoLvl,
     pub message: String,
 }
 
-impl WsInfoMessage {
-    pub fn new(lvl: InfoLvl, message: String) -> WsInfoMessage {
-        WsInfoMessage { lvl, message }
+impl UiInfoMessage {
+    pub fn new(lvl: InfoLvl, message: String) -> UiInfoMessage {
+        UiInfoMessage { lvl, message }
     }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct WsPositionMessage {
+pub struct UiPositionMessage {
     pub x: f64,
     pub y: f64,
     pub z: f64,
 }
-impl WsPositionMessage {
-    pub fn new(x: f64, y: f64, z: f64) -> WsPositionMessage {
-        WsPositionMessage { x, y, z }
+impl UiPositionMessage {
+    pub fn new(x: f64, y: f64, z: f64) -> UiPositionMessage {
+        UiPositionMessage { x, y, z }
     }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct WsControllerMessage {
+pub struct UiControllerMessage {
     pub x: f64,
     pub y: f64,
     pub z: f64,
@@ -77,14 +78,14 @@ pub struct WsControllerMessage {
     pub freeze_y: bool,
     pub slow: bool,
 }
-impl WsControllerMessage {
+impl UiControllerMessage {
     pub fn new(
         pos: &Location<f64>,
         freeze_x: bool,
         freeze_y: bool,
         slow: bool,
-    ) -> WsControllerMessage {
-        WsControllerMessage {
+    ) -> UiControllerMessage {
+        UiControllerMessage {
             x: pos.x,
             y: pos.y,
             z: pos.z,
@@ -97,7 +98,7 @@ impl WsControllerMessage {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct WsStatusMessage {
+pub struct UiStatusMessage {
     pub mode: Mode,
     pub dev_mode: bool,
     pub in_opp: bool,
@@ -107,7 +108,7 @@ pub struct WsStatusMessage {
     pub steps_done: i64,
     pub is_switched_on: bool,
 }
-impl WsStatusMessage {
+impl UiStatusMessage {
     pub fn new(
         mode: Mode,
         dev_mode: bool,
@@ -117,8 +118,8 @@ impl WsStatusMessage {
         steps_todo: i64,
         steps_done: i64,
         is_switched_on: bool,
-    ) -> WsStatusMessage {
-        WsStatusMessage {
+    ) -> UiStatusMessage {
+        UiStatusMessage {
             mode,
             dev_mode,
             in_opp,
@@ -168,15 +169,15 @@ impl ProgramInfo {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
-pub struct WsAvailableProgramsMessage {
+pub struct UiAvailableProgramsMessage {
     pub progs: Vec<ProgramInfo>,
     pub input_dir: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
-pub enum WsReplyMessage {
-    AvailablePrograms(WsAvailableProgramsMessage),
+pub enum UiReplyMessage {
+    AvailablePrograms(UiAvailableProgramsMessage),
     #[serde(rename_all = "camelCase")]
     LoadProgram {
         program_name: String,
@@ -235,32 +236,32 @@ pub enum WsReplyMessage {
 #[derive(Clone, Debug, Serialize, Deserialize, Message)]
 #[serde(rename_all = "camelCase", tag = "type")]
 #[rtype(result = "()")]
-pub enum WsMessages {
-    Connected(WsConnectedMessage),
-    Info(WsInfoMessage),
-    Position(WsPositionMessage),
-    ProgsUpdate(WsAvailableProgramsMessage),
-    Controller(WsControllerMessage),
-    Status(WsStatusMessage),
-    Reply { to: Uuid, msg: WsReplyMessage },
+pub enum UiMessages {
+    Connected(UiConnectedMessage),
+    Info(UiInfoMessage),
+    Position(UiPositionMessage),
+    ProgsUpdate(UiAvailableProgramsMessage),
+    Controller(UiControllerMessage),
+    Status(UiStatusMessage),
+    Reply { to: Uuid, msg: UiReplyMessage },
 }
 
 #[derive(Clone, Debug, Message)]
 #[rtype(result = "()")]
-pub struct WsCommandsFrom(pub Uuid, pub WsCommands);
+pub struct UiCommandsFrom(pub Uuid, pub UiCommands);
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "cmd")]
-pub enum WsCommands {
-    Program(WsCommandProgram),
-    Control(WsCommandControl),
-    Controller(WsCommandController),
-    Settings(WsCommandSettings),
+pub enum UiCommands {
+    Program(UiCommandProgram),
+    Control(UiCommandControl),
+    Controller(UiCommandController),
+    Settings(UiCommandSettings),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "action")]
-pub enum WsCommandProgram {
+pub enum UiCommandProgram {
     Get,
     #[serde(rename_all = "camelCase")]
     Load {
@@ -286,14 +287,14 @@ pub enum WsCommandProgram {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "action")]
-pub enum WsCommandControl {
+pub enum UiCommandControl {
     // Move { direction: string, speed: f64},
     OnOff { on: bool },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "action")]
-pub enum WsCommandController {
+pub enum UiCommandController {
     FreezeX { freeze: bool },
     FreezeY { freeze: bool },
     Slow { slow: bool },
@@ -301,17 +302,17 @@ pub enum WsCommandController {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "action")]
-pub enum WsCommandSettings {
+pub enum UiCommandSettings {
     GetSystem,
     #[serde(rename_all = "camelCase")]
-    SetSystem(WsCommandSettingsSetSystemSettings),
+    SetSystem(UiCommandSettingsSetSystemSettings),
     GetRuntime,
-    SetRuntime(WsCommandSettingsSetRuntimeSettings),
+    SetRuntime(UiCommandSettingsSetRuntimeSettings),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct WsCommandSettingsSetSystemSettings {
+pub struct UiCommandSettingsSetSystemSettings {
     pub dev_mode: bool,
     pub motor_x: SettingsMotor,
     pub motor_y: SettingsMotor,
@@ -325,7 +326,7 @@ pub struct WsCommandSettingsSetSystemSettings {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct WsCommandSettingsSetRuntimeSettings {
+pub struct UiCommandSettingsSetRuntimeSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input_dir: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]

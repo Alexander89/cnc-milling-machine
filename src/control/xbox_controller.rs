@@ -1,17 +1,17 @@
-use std::sync::mpsc::{SendError, Sender};
+use crossbeam_channel::SendError;
 use gilrs::{Axis, Button, Event, EventType, Gilrs};
-use crate::{types::Location};
-use super::{Control, ControlState, UserControlInput};
+use crate::{app::{SystemEvents, SystemPublisher}, types::Location};
+use super::{Controller, ControlState, UserControlInput};
 
 #[derive(Debug)]
 pub struct XBoxController {
     gilrs: Gilrs,
     last_control: Location<f64>,
-    sender: Sender<UserControlInput>,
+    event_publish: SystemPublisher,
 }
 
 impl XBoxController {
-    pub fn new(sender: Sender<UserControlInput>) -> Result<Self, &'static str> {
+    pub fn new(event_publish: SystemPublisher) -> Result<Self, &'static str> {
         let gilrs = Gilrs::new()
             .map_err(|_| "gamepad not valid")
             .expect("controller is missing");
@@ -22,7 +22,7 @@ impl XBoxController {
             Ok(XBoxController {
                 gilrs,
                 last_control: Location::default(),
-                sender,
+                event_publish,
             })
         }
 
@@ -37,8 +37,8 @@ impl XBoxController {
         gamepad_found
     }
 }
-impl Control for XBoxController {
-    fn poll(&mut self, op_state: ControlState) -> Result<ControlState, SendError<UserControlInput>> {
+impl Controller for XBoxController {
+    fn poll(&mut self, op_state: ControlState) -> Result<ControlState, SendError<SystemEvents>> {
         let mut control = self.last_control.clone();
         // map GamePad events to update the manual program or start a program
         while let Some(Event { event, .. }) = self.gilrs.next_event() {
@@ -73,36 +73,36 @@ impl Control for XBoxController {
 
                 EventType::ButtonReleased(Button::Select, _) => {
                     // remove later to avoid killing the machine by mistake
-                    self.sender.send(UserControlInput::Terminate)?;
+                    self.event_publish.send(SystemEvents::Terminate)?;
                     return Ok(op_state);
                 }
                 EventType::ButtonReleased(Button::Start, _) => {
-                    self.sender.send(UserControlInput::Start)?;
+                    self.event_publish.send(SystemEvents::ControlInput(UserControlInput::Start))?;
                 }
                 EventType::ButtonReleased(Button::Mode, _) => {
-                    self.sender.send(UserControlInput::Stop)?;
+                    self.event_publish.send(SystemEvents::ControlInput(UserControlInput::Stop))?;
                 }
                 // add cross to select a program
                 EventType::ButtonPressed(Button::DPadDown, _)=> {
-                    self.sender.send(UserControlInput::NextProgram)?
+                    self.event_publish.send(SystemEvents::ControlInput(UserControlInput::NextProgram))?
                 }
                 EventType::ButtonPressed(Button::DPadUp, _) => {
-                    self.sender.send(UserControlInput::PrefProgram)?
+                    self.event_publish.send(SystemEvents::ControlInput(UserControlInput::PrefProgram))?
                 }
                 EventType::ButtonPressed(Button::South, _) => {
-                    self.sender.send(UserControlInput::SelectProgram)?;
+                    self.event_publish.send(SystemEvents::ControlInput(UserControlInput::SelectProgram))?;
                 }
                 EventType::ButtonPressed(Button::North, _) => {
-                    self.sender.send(UserControlInput::ResetPosToNull)?;
+                    self.event_publish.send(SystemEvents::ControlInput(UserControlInput::ResetPosToNull))?;
                 }
                 EventType::ButtonPressed(Button::East, _) => {
-                    self.sender.send(UserControlInput::CalibrateZ)?;
+                    self.event_publish.send(SystemEvents::ControlInput(UserControlInput::CalibrateZ))?;
                 }
                 _ => {}
             }
         }
         if control != self.last_control {
-            self.sender.send(UserControlInput::ManualControl(control.clone()))?;
+            self.event_publish.send(SystemEvents::ControlInput(UserControlInput::ManualControl(control.clone())))?;
             self.last_control = control;
         }
         Ok(op_state)

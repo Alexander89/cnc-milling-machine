@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::{env, fs};
 
+use crate::control::SettingsControl;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
@@ -13,15 +15,14 @@ pub struct Settings {
     pub on_off_switch_delay: f64,
     pub on_off_invert: bool,
     pub input_dir: Vec<String>,
-    pub input_update_reduce: u32,
     pub default_speed: f64,
     pub rapid_speed: f64,
     pub scale: f64,
     pub invert_z: bool,
-    pub show_console_output: bool,
     pub pos_update_every_x_sec: f64,
-    #[serde(default)]
     pub external_input_enabled: bool,
+    pub ui: SettingsUi,
+    pub control: SettingsControl,
 }
 
 impl Default for Settings {
@@ -30,76 +31,91 @@ impl Default for Settings {
             dev_mode: false,
             motor_x: SettingsMotor {
                 max_step_speed: 200,
-                pull_gpio: 18,
-                dir_gpio: 27,
-                invert_dir: false,
-                ena_gpio: None,
-                end_left_gpio: Some(21),
-                end_right_gpio: Some(20),
                 step_size: 0.004f64,
-                // acceleration constance
                 acceleration: 1.0f64,
-                // deceleration constance
                 deceleration: 1.0f64,
-                //acceleration_damping: 0.0009f64,
                 free_step_speed: 20.0f64,
                 acceleration_time_scale: 2.0f64,
+
+                driver_settings: DriverType::Stepper(StepperDriverSettings {
+                    pull_gpio: 18,
+                    dir_gpio: 27,
+                    invert_dir: false,
+                    ena_gpio: None,
+                    end_left_gpio: Some(21),
+                    end_right_gpio: Some(20),
+                }),
             },
             motor_y: SettingsMotor {
                 max_step_speed: 200,
-                pull_gpio: 22,
-                dir_gpio: 23,
-                invert_dir: false,
-                ena_gpio: None,
-                end_left_gpio: Some(19),
-                end_right_gpio: Some(26),
                 step_size: 0.004f64,
-                // acceleration constance
                 acceleration: 1.0f64,
-                // deceleration constance
                 deceleration: 1.0f64,
-                //acceleration_damping: 0.0009f64,
                 free_step_speed: 20.0f64,
                 acceleration_time_scale: 2.0f64,
+                driver_settings: DriverType::Stepper(StepperDriverSettings {
+                    pull_gpio: 22,
+                    dir_gpio: 23,
+                    invert_dir: false,
+                    ena_gpio: None,
+                    end_left_gpio: Some(19),
+                    end_right_gpio: Some(26),
+                }),
             },
             motor_z: SettingsMotor {
                 max_step_speed: 200,
-                pull_gpio: 25,
-                dir_gpio: 24,
-                invert_dir: true,
-                ena_gpio: None,
-                end_left_gpio: Some(5),
-                end_right_gpio: Some(6),
                 step_size: 0.004f64,
-                // acceleration constance
                 acceleration: 1.0f64,
-                // deceleration constance
                 deceleration: 1.0f64,
-                //acceleration_damping: 0.0009f64,
                 free_step_speed: 20.0f64,
                 acceleration_time_scale: 2.0f64,
+                driver_settings: DriverType::Stepper(StepperDriverSettings {
+                    pull_gpio: 25,
+                    dir_gpio: 24,
+                    invert_dir: true,
+                    ena_gpio: None,
+                    end_left_gpio: Some(5),
+                    end_right_gpio: Some(6),
+                }),
             },
             calibrate_z_gpio: Some(16),
             on_off_gpio: Some(13),
             on_off_switch_delay: 3.5f64,
             on_off_invert: false,
             input_dir: vec![String::from(".")],
-            input_update_reduce: 10u32,
             default_speed: 360.0f64,
             rapid_speed: 720.0f64,
             scale: 1.0f64,
             invert_z: false,
-            show_console_output: false,
             pos_update_every_x_sec: 0.2f64,
             external_input_enabled: false,
+            ui: SettingsUi::default(),
+            control: SettingsControl::default()
         }
     }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SettingsMotor {
-    pub max_step_speed: u32,
+pub struct SettingsUi {
+    console: bool,
+    web: bool,
+}
+impl Default for SettingsUi {
+    fn default() -> Self {
+        Self {
+            console: true,
+            web: false,
+        }
+    }
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum DriverType {
+    Stepper(StepperDriverSettings),
+    Mock,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StepperDriverSettings {
     pub pull_gpio: u8,
     pub dir_gpio: u8,
     pub invert_dir: bool,
@@ -109,6 +125,13 @@ pub struct SettingsMotor {
     pub end_left_gpio: Option<u8>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_right_gpio: Option<u8>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingsMotor {
+    pub driver_settings: DriverType,
+    pub max_step_speed: u32,
     pub step_size: f64,
     // acceleration constance
     pub acceleration: f64,

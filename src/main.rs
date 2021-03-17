@@ -1,6 +1,7 @@
 mod app;
 mod gnc;
 mod hardware_controller;
+mod hardware_controller_interface;
 mod io;
 mod settings;
 mod types;
@@ -10,7 +11,5 @@ mod control;
 use app::App;
 
 fn main() {
-    // let package = WsCommands::Program(WsCommandProgram::Load{program_name: String::from("name")});
-    // println!("output {:?}", serde_json::to_string(&package));
-    App::start().expect("terminated with:");
+    App::start();
 }

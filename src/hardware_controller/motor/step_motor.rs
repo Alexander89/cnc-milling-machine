@@ -1,6 +1,5 @@
-#![allow(clippy::too_many_arguments)]
-use super::{Driver, Result, SettingsMotor};
-use crate::io::{Switch, Actor};
+use super::{Driver, Result};
+use crate::{io::{Switch, Actor}, settings::StepperDriverSettings};
 use crate::types::Direction;
 use std::fmt::Debug;
 
@@ -43,7 +42,7 @@ impl StepMotor {
             current_direction: Direction::Left,
         }
     }
-    pub fn from_settings(settings: SettingsMotor) -> Self {
+    pub fn from_settings(settings: StepperDriverSettings) -> Self {
         StepMotor::new(
             settings.pull_gpio,      // 18,
             settings.dir_gpio,       // 27,

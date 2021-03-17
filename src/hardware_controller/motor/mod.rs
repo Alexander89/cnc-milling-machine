@@ -1,7 +1,7 @@
 pub mod mock_motor;
 pub mod step_motor;
 
-use crate::types::Direction;
+use crate::{settings::DriverType, types::Direction};
 use log::{max_level, LevelFilter};
 use std::{fmt::Debug, result};
 
@@ -11,12 +11,7 @@ pub type Result<T> = result::Result<T, &'static str>;
 
 #[derive(Clone, Debug)]
 pub struct SettingsMotor {
-    pub pull_gpio: u8,
-    pub dir_gpio: u8,
-    pub invert_dir: bool,
-    pub ena_gpio: Option<u8>,
-    pub end_left_gpio: Option<u8>,
-    pub end_right_gpio: Option<u8>,
+    pub driver_settings: DriverType,
     // acceleration constance
     pub acceleration: f64,
     // deceleration constance
@@ -37,7 +32,11 @@ pub struct Motor {
 }
 
 impl Motor {
-    pub fn new(name: String, settings: SettingsMotor, driver: Box<dyn Driver + Send>) -> Self {
+    pub fn new(name: String, settings: SettingsMotor) -> Self {
+        let driver: Box<dyn Driver + Send> = match settings.driver_settings.clone() {
+            DriverType::Mock => Box::new(MockMotor::new()),
+            DriverType::Stepper(settings) => Box::new(StepMotor::from_settings(settings))
+        };
         println!("init motor {}", name);
         Motor {
             name,

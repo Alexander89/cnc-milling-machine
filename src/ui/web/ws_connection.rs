@@ -1,5 +1,5 @@
 use super::system::System;
-use crate::ui::types::{Connect, Disconnect, WsCommands, WsCommandsFrom, WsMessages};
+use crate::web::types::{Connect, Disconnect, WsCommands, WsCommandsFrom, WsMessages};
 use actix::{
     fut, Actor, ActorContext, ActorFuture, Addr, AsyncContext, ContextFutureSpawner, Handler,
     Running, StreamHandler, WrapFuture,

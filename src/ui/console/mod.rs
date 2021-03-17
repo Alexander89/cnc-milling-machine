@@ -69,7 +69,7 @@ impl Console {
                         SystemEvents::ControlInput(UserControlInput::ResetPosToNull) =>
                             printScreen!(out, "ResetPosToNull", 1, 3),
                         SystemEvents::ControlInput(UserControlInput::ManualControl(dir)) =>
-                            printScreen!(out, "move manual x {} y {} z {}", 0, 4, dir.x, dir.y, dir.z),
+                            printScreen!(out, "move manual x {} y {} z {}  ", 0, 4, dir.x, dir.y, dir.z),
 
                         _ => continue 'main,
                     }

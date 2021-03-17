@@ -1,5 +1,5 @@
 pub struct App;
-use std::{io::Stdout, sync::{Arc, Mutex}, thread, time::Duration};
+use std::{io::{Stdout, Write}, sync::{Arc, Mutex}, thread, time::Duration};
 use termion::raw::{IntoRawMode, RawTerminal};
 use std::io::stdout;
 use crossbeam_channel::{unbounded, Sender, Receiver};
@@ -43,13 +43,13 @@ impl App {
 
         // create modules
 
-        let _hardware_modul = HardwareControllerInterface::new(event_publish.clone(), event_subscribe.clone(), SettingsHardwareController::from(settings.clone()));
-        let _controller_modul = Control::new(event_publish.clone(), event_subscribe.clone(), settings.control.clone());
-        let _ui_modul = Ui::new(event_publish.clone(), event_subscribe.clone(), out.clone(), settings.ui.clone());
+        HardwareControllerInterface::new(event_publish.clone(), event_subscribe.clone(), SettingsHardwareController::from(settings.clone()));
+        Control::new(event_publish.clone(), event_subscribe.clone(), settings.control.clone());
+        Ui::new(event_publish.clone(), event_subscribe.clone(), out.clone(), settings.ui.clone());
 
         // wait before flushing the
-        thread::sleep(Duration::from_millis(100));
-
+        thread::sleep(Duration::from_millis(1000));
+        out.lock().unwrap().flush().unwrap();
 
         'main: loop {
             while let Ok(event) = event_subscribe.try_recv() {
@@ -65,5 +65,6 @@ impl App {
         }
         thread::sleep(Duration::from_millis(1000));
         out.lock().unwrap().suspend_raw_mode().unwrap();
+        println!("");
     }
 }
